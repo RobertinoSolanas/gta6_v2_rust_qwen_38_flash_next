@@ -1,0 +1,6 @@
+[package]
+name = "gta6_v2_rust_qwen_38_flash_next"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
