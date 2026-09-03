@@ -1,0 +1,1 @@
+//! city-camera (placeholder)

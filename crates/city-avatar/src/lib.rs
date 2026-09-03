@@ -1,0 +1,1 @@
+//! city-avatar (placeholder)

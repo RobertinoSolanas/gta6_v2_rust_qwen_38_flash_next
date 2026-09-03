@@ -1,0 +1,9 @@
+[package]
+name = "city-layout"
+description = "Bounded context: procedural city generation, spatial index, walkable network"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+city-math.workspace = true

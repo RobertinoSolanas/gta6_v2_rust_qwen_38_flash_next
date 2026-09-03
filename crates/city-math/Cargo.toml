@@ -1,0 +1,6 @@
+[package]
+name = "city-math"
+description = "Shared kernel: tiny deterministic linear algebra, geometry and RNG"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
