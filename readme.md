@@ -1,12 +1,18 @@
 # Neon Bay — procedural GTA-style city (Rust → WebAssembly, zero assets)
 
 A walkable city that is generated from a single seed at runtime: road grid, sidewalks,
-crossings, blocks with buildings (procedural facades + lit windows), parks, trees,
-street lamps, driving cars and walking pedestrians — plus an animated third-person
-character (WASD / mouse look / Shift sprint) and a full day/night cycle.
+crossings, blocks with buildings, parks, trees and street lamps — walked through by a
+third-person character (WASD / mouse look / Shift sprint) under a full day/night cycle
+whose lamps, exposure and sky curves follow the clock.
 
-Everything is **code**: meshes, textures, sky, lighting and the HUD are produced by Rust
-at runtime. There are no image, model, font or audio files in this repository.
+What is **not** there yet (open increments in [plan.md](plan.md)): traffic and pedestrian
+simulation (`city-sim`), procedural textures (`city-tex`), the animated humanoid rig
+(`city-mesh`) and the full shadow/HDR/bloom pipeline (`city-render`) are placeholder
+crates — the streets are empty and the character is rendered as the camera focus, not yet
+as an animated body.
+
+Everything is **code**: geometry, sky, lighting and the HUD are produced by Rust at
+runtime. There are no image, model, font or audio files in this repository.
 
 ## Build & run
 
@@ -22,10 +28,12 @@ at runtime. There are no image, model, font or audio files in this repository.
 `run.sh` refuses to start when `web/pkg/` is missing.
 
 Controls: **W A S D** walk · **Shift** sprint · **mouse** look (click canvas to grab the
-pointer) · **Space** jump · **F** cycle camera distance · **T** time skip · **/** hide HUD.
+pointer) · **Space** jump · **F** cycle camera distance · **T** skip to the next phase of
+the day · **H** hide/show the HUD.
 
 Requirements: Rust ≥ 1.85 (`wasm32-unknown-unknown` target), `wasm-pack`, any WebGL2
-browser. Chrome headless is used for the runtime tests.
+browser. Chrome headless (`$CHROME_BIN`, defaults to `google-chrome`) is used for the
+runtime tests; nothing is installed by them.
 
 ## Testing
 
@@ -43,9 +51,11 @@ so the WebGL2 context keeps the app's own attributes (`preserveDrawingBuffer`),
 which is what lets the suite read rendered pixels back. Artifacts (screenshots +
 `report.json`) go to `runtime-tests/artifacts/`.
 
-Every crate has its own `tests/` folder with tests kept separate from the source.
-`crates/city-integration` holds the cross-crate app tests; `runtime-tests/` drives
-Google Chrome headless and writes screenshots to `runtime-tests/artifacts/`.
+Tests live in each crate's own `tests/` folder, separate from the source. Today that is
+`city-math` (4 files), `city-layout` (3), `city-sky` (1), `city-input` (1) and `city-app` (1);
+`city-sim`, `city-avatar`, `city-camera`, `city-tex`, `city-mesh`, `city-render`,
+`city-hud` and `city-integration` still need theirs (see *Test status* in
+[plan.md](plan.md)), which the browser suite currently covers in part.
 
 ## Architecture (bounded contexts)
 
@@ -54,16 +64,16 @@ Google Chrome headless and writes screenshots to `runtime-tests/artifacts/`.
 | `city-math` | shared kernel: vec/mat/AABB/hash/PCG-RNG (no external math crate) |
 | `city-layout` | city generation: blocks, roads, sidewalks, lots, props, spatial index, collision |
 | `city-sky` | day/night: sun & moon direction, sky gradient, fog, exposure, light curves |
-| `city-sim` | traffic lanes + car flow, pedestrian crowd steering |
+| `city-sim` | *placeholder* — traffic lanes + car flow, pedestrian crowd steering |
 | `city-avatar` | third-person character controller and skeletal pose |
 | `city-camera` | orbit rig, mouse look, occlusion pull-back, smoothing |
 | `city-input` | DOM-independent keyboard/mouse action model |
-| `city-tex` | procedural material textures (asphalt, concrete, grass, brick, metal, …) |
-| `city-mesh` | geometry builders: ground/roads, buildings, trees, lamps, cars, humanoid rig |
-| `city-render` | WebGL2 renderer: shadow map, sky, HDR, bloom, tonemap post, culling |
+| `city-tex` | *placeholder* — procedural material textures (asphalt, concrete, grass, brick, metal, …) |
+| `city-mesh` | *placeholder* — geometry builders incl. the humanoid rig (what is drawn today comes from `city-app/src/mesh.rs`) |
+| `city-render` | *placeholder* — WebGL2 renderer: shadow map, HDR, bloom, culling (the live GL path is in `city-app`) |
 | `city-hud` | minimap / clock / compass / tips model (drawn as vector overlay) |
 | `city-app` | fixed-step world orchestration + `#[wasm_bindgen]` boundary |
-| `city-integration` | whole-app invariants, determinism, performance budget |
+| `city-integration` | *placeholder* — whole-app invariants, determinism, performance budget |
 
 Dependencies are intentionally minimal: `wasm-bindgen`, `web-sys`, `js-sys`
 (+ `wasm-bindgen-test`). The pure-logic crates compile natively, which is what makes the
@@ -71,6 +81,7 @@ large test suite possible without a browser.
 
 ## Progress
 
-Implementation state, crate-by-crate use cases and the test matrix live in
-**[plan.md](plan.md)**. Current phase: **I15 — browser bring-up** (build, native tests and the headless
-Chrome runtime suite all pass from a clean build).
+Implementation state, crate-by-crate use cases and the measured test status live in
+**[plan.md](plan.md)**. Current phase: **I13 — polish & tuning** — the app boots and runs
+in the browser (**I15** done, 143 native + 11 runtime tests green); what is left is the
+visual pass and the missing per-crate test folders.

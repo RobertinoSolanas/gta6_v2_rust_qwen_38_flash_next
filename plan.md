@@ -57,19 +57,32 @@ Guiding rules for every step: **small step → `cargo build` → `cargo test` �
   zenith/horizon/glow bands, fog colour + view distance, exposure (`1.0` day → `2.1`
   night), star/window/lamp/headlight/ambient curves, `SkySample` snapshot and
   `SkyClock` (advance / `T` phase-skip / wrap). 30 tests in `city-sky/tests/sky_cycle.rs`.
-* **I4 — city-sim (done)** pedestrians + cars on the generated street graph.
+* **I4 — city-sim (pending)** placeholder crate — pedestrians and traffic are simulated
+  nowhere today, so the streets are empty; `city-layout` does generate the lanes, crossings
+  and sidewalks they will drive/walk on.
 * **I5 — city-avatar + city-camera + city-input (done)** controller, rig, DOM-free input.
-* **I6 — city-tex (done)** procedural material textures.
-* **I7 — city-mesh (done)** all geometry + rigs (CPU side).
-* **I8 — city-hud (done)** minimap/clock/tips model.
-* **I9 — city-render (done)** WebGL2: shadow, sky, HDR, bloom, post.
-* **I10 — city-app (done)** wasm glue, fixed step loop, page shell, autotest hooks.
-* **I11 — city-integration (done)** cross-crate invariants + perf budget.
-* **I12 — runtime tests (done)** Chrome headless screenshots: `day`, `walk/sprint`, `night`.
-* **I13 — polish & tuning (in progress)** look pass: neon night lighting, shopfronts,
-  rooftops, traffic lights, birds/planes?, perf, adaptive quality.
-* **I14 — docs & final QA (done)** readme, run instructions, full `cargo test --workspace`,
-  clippy/fmt clean-ish, runtime suite green.
+* **I6 — city-tex (pending)** placeholder crate; `city-app` currently shades flat palette
+  colours per material id instead of generated textures.
+* **I7 — city-mesh (pending)** placeholder crate; the geometry that is drawn is built by
+  `city-app/src/mesh.rs` (ground, block caps, kerbs, building boxes, parks, props). No
+  humanoid rig / part palette exists yet, so the character has no animated mesh.
+* **I8 — city-hud (done)** minimap / clock / compass / tips model, painted as a Canvas2D
+  vector overlay by `city-app` (no `tests/` folder yet).
+* **I9 — city-render (pending)** still the placeholder crate from I0 (~1 line of docs, no
+  shader source, no `tests/`). The WebGL2 path that actually runs lives in `city-app`
+  (`shaders.rs` = sky + city program, `dom.rs` = buffers/VAO/FBO, one directional light,
+  fog, tone map). Shadow map, HDR target, bloom and the rest of the designed pipeline are
+  not implemented anywhere yet.
+* **I10 — city-app (in progress)** fixed-step world, wasm glue and the page shell run end to
+  end; covered by `city-app/tests/app_world.rs`.
+* **I11 — city-integration (pending)** the crate is in the workspace but has no `tests/`
+  folder yet (cross-crate invariants, determinism and the perf budget are still
+  untested).
+* **I12 — runtime tests (done)** Chrome headless screenshots `day`, `walk`, `night` plus the
+  other checks listed under I15 — rebuilt from scratch in `runtime-tests/` (see I15).
+* **I13 — polish & tuning (pending — current phase)** look pass: neon night lighting,
+  shopfronts, rooftops, traffic lights, birds/planes?, perf, adaptive quality.
+* **I14 — docs & final QA (done)** readme, run instructions, full `cargo test --workspace`.
 * **I15 — browser bring-up (done)** the app boots in a browser from a clean tree:
   `city-app` is a `cdylib` (`crate-type = ["cdylib", "rlib"]`), its WebGL2 context asks for
   `preserveDrawingBuffer` (the frame is then readable from JS), `index.html` exposes the
@@ -79,9 +92,20 @@ Guiding rules for every step: **small step → `cargo build` → `cargo test` �
   hand-rolled WebSocket): 11 browser checks — boot, content, pixels, walk, sprint, camera,
   night, time skip, HUD, stability, console cleanliness.
 
+## Test status (as measured)
+
+`cargo test --workspace` → **143 passed / 0 failed**; `node runtime-tests/run.mjs` →
+**11 / 11** in headless Chrome; `./check.sh` → green.
+
+Per-crate `tests/` folders that exist today: `city-math` (4 files), `city-layout` (3),
+`city-sky` (1 — 30 tests), `city-input` (1), `city-app` (1). Still to write:
+`city-sim`, `city-avatar`, `city-camera`, `city-tex`, `city-mesh`, `city-render`,
+`city-hud`, `city-integration` — the runtime suite currently covers part of that gap from
+the browser side. `city-render` is additionally still a placeholder implementation.
+
 ## Definition of done
 
 * `cargo test --workspace` green (native) and `wasm-pack test` compiles.
-* `node runtime-tests/run.mjs` → 3 screenshots + all DOM assertions pass, 0 console errors.
+* `node runtime-tests/run.mjs` → screenshots + all DOM assertions pass, 0 console errors.
 * Walkable city: roads, sidewalks, buildings with lit windows, trees, moving cars & peds,
   animated third-person character, day→night cycle, custom-drawn HUD/minimap.
