@@ -4,7 +4,10 @@
 //! facade procedurally (window grid, banding, shopfront, neon accents). Placement
 //! lives in [`crate::generate`].
 
-use city_math::{Aabb2, Vec2};
+use city_math::{Aabb2, Rng, Vec2};
+
+use crate::params::CityParams;
+use crate::BlockKind;
 
 /// Facade vocabulary. Each value maps to a fragment-shader branch, so a new style
 /// is code — never an image file.
@@ -226,7 +229,7 @@ impl Building {
             FacadeStyle::Brick => 0.26,
         };
         if self.landmark {
-            (base + 0.35).min(0.95)
+            f32::min(base + 0.35, 0.95)
         } else {
             base
         }
@@ -241,4 +244,173 @@ impl Building {
             _ => [1.00, 0.78, 0.45],
         }
     }
+}
+
+// --- placement ------------------------------------------------------------
+//
+// Massing strategy: split the lot into bands along X, then each band into plots
+// along Z. Every leaf cell takes one mass, and the alley width is kept as the gap,
+// which is what produces the "alley" gaps between neighbours.
+
+/// Metres of facade per window column.
+const WINDOW_SPACING: f32 = 3.2;
+/// A mass narrower than this on either axis is not worth building.
+const MIN_PLOT: f32 = 7.5;
+/// Setback volume height as a fraction of the main volume.
+const SETBACK_RATIO: f32 = 0.28;
+
+/// Window columns that fit into `span` metres.
+#[inline]
+fn window_columns(span: f32) -> u8 {
+    ((span / WINDOW_SPACING).floor() as i32).clamp(1, u8::MAX as i32) as u8
+}
+
+/// Pick a roof type from the height of the main volume.
+fn pick_roof(height: f32, rng: &mut Rng) -> RoofKind {
+    if height > 45.0 {
+        RoofKind::Crown
+    } else if height > 18.0 {
+        if rng.next_f32() < 0.55 {
+            RoofKind::Mechanical
+        } else {
+            RoofKind::Flat
+        }
+    } else if rng.next_f32() < 0.45 {
+        RoofKind::WaterTank
+    } else {
+        RoofKind::Flat
+    }
+}
+
+/// Split `[lo, hi]` into `n` slices separated by `gap` (alleys).
+fn slices(lo: f32, hi: f32, n: usize, gap: f32) -> Vec<(f32, f32)> {
+    let span = hi - lo;
+    if span <= gap {
+        return Vec::new();
+    }
+    let n = n.max(1);
+    let unit = (span - gap * (n - 1) as f32) / n as f32;
+    if unit_too_small(unit) {
+        return vec![(lo, hi)];
+    }
+    (0..n)
+        .map(|i| {
+            let a = lo + i as f32 * (unit + gap);
+            let b = if i + 1 == n { hi } else { a + unit };
+            (a, b)
+        })
+        .collect()
+}
+
+#[inline]
+fn unit_too_small(unit: f32) -> bool {
+    unit < MIN_PLOT
+}
+
+/// Build every building of one block into `out`.
+///
+/// Deterministic: the same `seed`, `lot` and `params` always yield the same masses.
+pub fn build_block_buildings(
+    block: usize,
+    kind: BlockKind,
+    lot: Aabb2,
+    params: &CityParams,
+    rng: &mut Rng,
+    out: &mut Vec<Building>,
+) {
+    if kind != BlockKind::Urban {
+        return;
+    }
+    let gap = params.alley_width.max(0.5);
+    // Downtown gets the towers: height scales with distance from the core.
+    let downtown = 1.0 - city_math::saturate(params.centrality(lot.center()));
+    let bands = slices(
+        lot.min.x,
+        lot.max.x,
+        2 + (rng.next_f32() * 2.0) as usize,
+        gap,
+    );
+    for (x0, x1) in bands {
+        let cols = slices(
+            lot.min.y,
+            lot.max.y,
+            1 + (rng.next_f32() * 2.8) as usize,
+            gap,
+        );
+        for (y0, y1) in cols {
+            // Occasional courtyard: leave this plot empty as a light well / inner yard.
+            if rng.next_f32() < 0.12 {
+                continue;
+            }
+            let plot = Aabb2::new(Vec2::new(x0, y0), Vec2::new(x1, y1));
+            if plot.size().x < MIN_PLOT || plot.size().y < MIN_PLOT {
+                continue;
+            }
+            out.push(make_building(block, plot, params, rng, downtown));
+        }
+    }
+}
+
+/// Height of an ordinary mass at `p` (metres), before the downtown bonus.
+fn target_height(params: &CityParams, rng: &mut Rng) -> f32 {
+    params.height_low + (params.height_max - params.height_low) * rng.range_f32(0.05, 1.0)
+}
+
+/// Scale `height` by how central the plot is (`downtown` = 1 downtown, 0 at the rim).
+///
+/// The `powi(6)` curve keeps the skyline flat over most of the grid and spikes the
+/// landmark towers in the core.
+fn apply_downtown(params: &CityParams, height: f32, downtown: f32, rng: &mut Rng) -> f32 {
+    height + params.landmark_extra * downtown.powi(6) * rng.range_f32(0.35, 1.0)
+}
+
+fn make_building(
+    block: usize,
+    plot: Aabb2,
+    params: &CityParams,
+    rng: &mut Rng,
+    downtown: f32,
+) -> Building {
+    let style = FacadeStyle::pick(rng);
+    let height = target_height(params, rng);
+    // Tall towers get a setback volume so the skyline is not a field of boxes.
+    let (setback_height, setback_scale) = if height > 26.0 && rng.next_f32() < 0.75 {
+        (
+            height * SETBACK_RATIO * rng.range_f32(0.7, 1.0),
+            rng.range_f32(0.45, 0.78),
+        )
+    } else {
+        (0.0, 0.0)
+    };
+    let floor_height = rng.range_f32(2.9, 3.6);
+    let floors = ((height / floor_height).floor() as i32).clamp(1, u8::MAX as i32) as u8;
+    let height = apply_downtown(params, height, downtown, rng);
+    let landmark = height > params.height_max + params.landmark_extra * 0.35;
+    let size = plot.size();
+    let variant = (rng.next_f32() * 8.0) as u8;
+    Building {
+        id: 0, // stamped by the caller's collection index
+        block,
+        footprint: plot,
+        height,
+        setback_height,
+        setback_scale,
+        style,
+        roof: pick_roof(height, rng),
+        floor_height,
+        floors,
+        windows_x: window_columns(size.x),
+        windows_z: window_columns(size.y),
+        shopfront: style.wants_shopfront(floor_count(height, params)),
+        variant,
+        seed: rng.next_u64(),
+        landmark,
+        accent: Building::NEON_PALETTE
+            [(rng.next_u64() % Building::NEON_PALETTE.len() as u64) as usize],
+    }
+}
+
+/// Storeys implied by a height, clamped to what a facade can show.
+fn floor_count(height: f32, _params: &CityParams) -> u8 {
+    ((height / 3.2).floor() as i32).clamp(1, u8::MAX as i32) as u8
 }

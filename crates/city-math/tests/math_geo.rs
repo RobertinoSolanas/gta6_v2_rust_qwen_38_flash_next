@@ -19,7 +19,7 @@ fn aabb2_construction_and_metrics() {
     assert_eq!(b.min, v2(1.0, 1.0));
     assert_eq!(b.max, v2(3.0, 5.0));
     let c = Aabb2::from_center_size(v2(0.0, 0.0), v2(1.0, 1.0));
-    assert!(b.intersects(c) == false || b.intersects(c));
+    assert!(!b.intersects(c) || b.intersects(c));
     assert_eq!(c.min, v2(-1.0, -1.0));
 }
 
@@ -48,14 +48,19 @@ fn aabb2_signed_distance_sign_matches_containment() {
     assert!(b.signed_distance(v2(5.0, 5.0)) < 0.0);
     assert!(b.signed_distance(v2(0.0, 5.0)).abs() < 1e-6);
     assert!((b.signed_distance(v2(13.0, 5.0)) - 3.0).abs() < 1e-4);
-    assert!((b.signed_distance(v2(13.0, 14.0)) - 5.0).abs() < 1e-4, "corner distance");
+    assert!(
+        (b.signed_distance(v2(13.0, 14.0)) - 5.0).abs() < 1e-4,
+        "corner distance"
+    );
 }
 
 #[test]
 fn push_out_resolves_to_nearest_face() {
     let wall = Aabb2::from_min_size(v2(0.0, -5.0), v2(4.0, 10.0));
     // Standing just inside the west face -> pushed back to the west side.
-    let r = wall.push_out(v2(1.0, 0.0), 0.0).expect("inside -> resolved");
+    let r = wall
+        .push_out(v2(1.0, 0.0), 0.0)
+        .expect("inside -> resolved");
     assert!(r.x <= 1e-5 && r.y == 0.0, "got {r:?}");
     // No collision far away.
     assert!(wall.push_out(v2(50.0, 0.0), 0.5).is_none());
@@ -109,7 +114,9 @@ fn seg2_intersection() {
     // Parallel segments never intersect.
     assert!(a.intersect(Seg2::new(v2(0.0, 1.0), v2(1.0, 1.0))).is_none());
     // Non overlapping, even though the infinite lines meet.
-    assert!(a.intersect(Seg2::new(v2(20.0, -1.0), v2(20.0, 1.0))).is_none());
+    assert!(a
+        .intersect(Seg2::new(v2(20.0, -1.0), v2(20.0, 1.0)))
+        .is_none());
 }
 
 #[test]
@@ -119,7 +126,9 @@ fn ray_hits_segment_only_within_range() {
     let r = Ray2::new(v2(0.0, 0.0), v2(2.0, 0.0), 100.0);
     let t = r.hit_seg(wall).expect("hit");
     assert!((t - 10.0).abs() < 1e-4, "got {t}");
-    assert!(Ray2::new(v2(0.0, 0.0), v2(1.0, 0.0), 5.0).hit_seg(wall).is_none());
+    assert!(Ray2::new(v2(0.0, 0.0), v2(1.0, 0.0), 5.0)
+        .hit_seg(wall)
+        .is_none());
     // Behind the ray origin.
     assert!(Ray2::new(v2(0.0, 0.0), v2(-1.0, 0.0), 100.0)
         .hit_seg(wall)
@@ -152,7 +161,9 @@ fn aabb3_contains_and_intersects() {
         Vec3::new(11.0, 1.0, 1.0)
     )));
     assert_eq!(b.grown(1.0).size().x, 6.0);
-    assert!(b.expand(v3(9.0, 0.0, 0.0)).contains(Vec3::new(8.0, 0.0, 0.0)));
+    assert!(b
+        .expand(v3(9.0, 0.0, 0.0))
+        .contains(Vec3::new(8.0, 0.0, 0.0)));
 }
 
 #[test]
@@ -160,7 +171,10 @@ fn aabb3_ray_hits_misses_and_inside() {
     let b = Aabb3::from_center_size(Vec3::ZERO, Vec3::new(2.0, 2.0, 4.0));
     let hit = b.ray(Vec3::new(0.0, 0.0, -20.0), Vec3::Z).expect("hit");
     // Box spans z in [-2, 2] → entry at t=18, exit at t=22.
-    assert!((hit.0 - 18.0).abs() < 1e-4 && (hit.1 - 22.0).abs() < 1e-4, "{hit:?}");
+    assert!(
+        (hit.0 - 18.0).abs() < 1e-4 && (hit.1 - 22.0).abs() < 1e-4,
+        "{hit:?}"
+    );
     // Pointing away from the box.
     assert!(b
         .ray(Vec3::new(0.0, 0.0, -5.0), Vec3::new(0.0, 0.0, -1.0))

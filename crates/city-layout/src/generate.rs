@@ -11,20 +11,23 @@ use crate::buildings::{self, Building};
 use crate::index::{IndexItem, IndexKind, SpatialIndex};
 use crate::params::CityParams;
 use crate::props::{Prop, PropKind};
-use crate::walk::{self, SidewalkLoop};
+use crate::walk::SidewalkLoop;
 use crate::{Block, BlockKind};
 
 /// Deterministic per-block RNG seed.
 #[inline]
 pub fn block_seed(seed: u64, cell: [usize; 2], salt: u64) -> u64 {
-    city_math::hash12(city_math::hash12(seed, salt), cell[0] as u64 * 738_581 + cell[1] as u64)
+    city_math::hash12(
+        city_math::hash12(seed, salt),
+        cell[0] as u64 * 738_581 + cell[1] as u64,
+    )
 }
 
 /// Choose the land use of a block.
 pub fn pick_block_kind(cell: [usize; 2], params: &CityParams, rng: &mut Rng) -> BlockKind {
-    let (ix, iz) = cell;
     let r = rng.next_f32();
-    let central = ix.abs_diff(params.blocks_x / 2) <= 1 && iz.abs_diff(params.blocks_z / 2) <= 1;
+    let central =
+        cell[0].abs_diff(params.blocks_x / 2) <= 1 && cell[1].abs_diff(params.blocks_z / 2) <= 1;
     // The core keeps its towers: green space is rare downtown.
     let park = params.land.park * if central { 0.35 } else { 1.0 };
     if r < park {
@@ -61,8 +64,7 @@ pub fn build_blocks(params: &CityParams, blocks: &mut Vec<Block>) {
             let mut rng = Rng::new(block_seed(params.seed, cell, 0xb10c5));
             let bounds = block_bounds(params, ix, iz);
             let kind = pick_block_kind(cell, params, &mut rng);
-            let edge =
-                ix == 0 || iz == 0 || ix + 1 == params.blocks_x || iz + 1 == params.blocks_z;
+            let edge = ix == 0 || iz == 0 || ix + 1 == params.blocks_x || iz + 1 == params.blocks_z;
             blocks.push(Block {
                 cell,
                 bounds,
@@ -86,6 +88,11 @@ pub fn fill_buildings(params: &CityParams, blocks: &mut [Block], out: &mut Vec<B
         let mut rng = Rng::new(block_seed(params.seed, cell, 0xb0c));
         let before = out.len();
         buildings::build_block_buildings(idx, kind, lots, params, &mut rng, out);
+        // `make_building` cannot know its final position in `out`; stamp the ids here
+        // so `Building::id` always equals its index in `City::buildings`.
+        for (n, b) in out.iter_mut().enumerate().skip(before) {
+            b.id = n;
+        }
         blocks[idx].buildings = (before..out.len()).collect();
     }
 }
@@ -258,11 +265,7 @@ pub fn place_centrepieces(params: &CityParams, blocks: &[Block], out: &mut Vec<P
 }
 
 /// Insert every solid object into the collision index.
-pub fn build_index(
-    buildings: &[Building],
-    props: &[Prop],
-    index: &mut SpatialIndex,
-) {
+pub fn build_index(buildings: &[Building], props: &[Prop], index: &mut SpatialIndex) {
     for b in buildings {
         index.insert(IndexItem {
             id: b.id,
@@ -284,34 +287,11 @@ pub fn build_index(
     }
 }
 
-/// A walkable spawn point close to the city centre.
-pub fn find_spawn(index: &SpatialIndex, loops: &[SidewalkLoop], centre: Vec2) -> Vec2 {
-    let mut best: Option<(f32, Vec2)> = None;
-    for loop_ in loops {
-        for &p in loop_.points() {
-            if index.overlaps_circle(p, 0.7) {
-                continue;
-            }
-            let d = centre.dist(p);
-            if best_is_better(d, best.map(|(bd, _)| bd)) {
-                best = Some((d, p));
-            }
-        }
-    }
-    best.map(|(_, p)| p).unwrap_or(centre)
-}
-
 /// Point on the loop pushed `off` metres towards the kerb (away from the block).
 fn kerb_point(loop_: &SidewalkLoop, s: f32, off: f32) -> Vec2 {
     let p = loop_.point_at(s);
     // The loop surrounds its block, so "away from the loop centre" is outwards.
-    let centre = loop_centre(loop_);
-    let dir = (p - centre).norm();
-    let d = if d.len_sq() < 1e-6 {
-        outward_from_loop(loop_, p, 0.0)
-    } else {
-        d
-    };
+    let d = (p - loop_centre(loop_)).norm();
     p + d * off
 }
 
@@ -349,10 +329,11 @@ pub fn pick_furniture(block: BlockKind, rng: &mut Rng) -> PropKind {
 }
 
 fn acc_add(a: &mut Vec2, b: Vec2) {
-    *a = *a + b;
+    *a += b;
 }
 
-fn find_spawn(params: &CityParams, index: &SpatialIndex, loops: &[SidewalkLoop]) -> Vec2 {
+/// A walkable spawn point close to the city centre.
+pub fn find_spawn(params: &CityParams, index: &SpatialIndex, loops: &[SidewalkLoop]) -> Vec2 {
     let centre = params.city_bounds().center();
     let mut best: Option<(f32, Vec2)> = None;
     for loop_ in loops {

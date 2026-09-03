@@ -216,7 +216,7 @@ impl SpatialIndex {
 fn mix_into(mut h: u64, v: u32) -> u64 {
     h ^= v as u64;
     h = h.wrapping_mul(0x100_0000_01b3);
-    (h >> 7) | (h << (64 - 7))
+    h.rotate_right(7)
 }
 
 /// `true` when `bucket` already holds `id`.

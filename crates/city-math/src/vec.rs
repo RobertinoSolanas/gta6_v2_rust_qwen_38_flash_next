@@ -94,7 +94,7 @@ impl Vec2 {
 
     /// Rotate by `+90°` steps (`n` may be negative).
     pub fn rot90(self, n: i32) -> Vec2 {
-        match ((n % 4) + 4) % 4 {
+        match n.rem_euclid(4) {
             1 => Vec2::new(-self.y, self.x),
             2 => Vec2::new(-self.x, -self.y),
             3 => Vec2::new(self.y, -self.x),
@@ -177,16 +177,15 @@ impl Vec3 {
     /// Build from a ground position plus a height.
     #[inline]
     pub const fn from_xz(p: Vec2, y: f32) -> Vec3 {
-        Vec3 {
-            x: p.x,
-            y,
-            z: p.y,
-        }
+        Vec3 { x: p.x, y, z: p.y }
     }
     /// Project onto the ground plane (drops `y`).
     #[inline]
     pub const fn xz(self) -> Vec2 {
-        Vec2 { x: self.x, y: self.z }
+        Vec2 {
+            x: self.x,
+            y: self.z,
+        }
     }
     #[inline]
     pub fn with_y(self, y: f32) -> Vec3 {
@@ -254,19 +253,11 @@ impl Vec3 {
     }
     #[inline]
     pub fn min(self, o: Vec3) -> Vec3 {
-        Vec3::new(
-            self.x.min(o.x),
-            self.y.min(o.y),
-            self.z.min(o.z),
-        )
+        Vec3::new(self.x.min(o.x), self.y.min(o.y), self.z.min(o.z))
     }
     #[inline]
     pub fn max(self, o: Vec3) -> Vec3 {
-        Vec3::new(
-            self.x.max(o.x),
-            self.y.max(o.y),
-            self.z.max(o.z),
-        )
+        Vec3::new(self.x.max(o.x), self.y.max(o.y), self.z.max(o.z))
     }
     #[inline]
     pub fn as_array(self) -> [f32; 3] {

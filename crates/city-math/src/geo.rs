@@ -347,7 +347,7 @@ impl Ray2 {
         let d = s.a - self.origin;
         let t = d.cross(e) / denom;
         let u = d.cross(self.dir) / denom;
-        if t >= 0.0 && t <= self.max_t && u >= 0.0 && u <= 1.0 {
+        if t >= 0.0 && t <= self.max_t && (0.0..=1.0).contains(&u) {
             Some(t)
         } else {
             None

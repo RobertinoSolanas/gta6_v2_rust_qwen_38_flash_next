@@ -35,7 +35,7 @@ fn f32_stream_is_in_range_and_unbiased() {
     const N: usize = 100_000;
     for _ in 0..N {
         let v = r.next_f32();
-        assert!(v >= 0.0 && v < 1.0, "out of range: {v}");
+        assert!((0.0..1.0).contains(&v), "out of range: {v}");
         sum += v;
     }
     let mean = sum / N as f32;
@@ -47,9 +47,13 @@ fn range_f32_respects_bounds() {
     let mut r = Rng::new(7);
     for _ in 0..5000 {
         let v = r.range_f32(-2.5, 3.5);
-        assert!(v >= -2.5 && v < 3.5, "{v}");
+        assert!((-2.5..3.5).contains(&v), "{v}");
     }
-    assert_eq!(r.range_f32(5.0, 5.0), 5.0, "degenerate range collapses to min");
+    assert_eq!(
+        r.range_f32(5.0, 5.0),
+        5.0,
+        "degenerate range collapses to min"
+    );
 }
 
 #[test]
@@ -94,7 +98,10 @@ fn weighted_picks_respect_weights() {
         counts[r.weighted(&w)] += 1;
     }
     assert_eq!(counts[2], 0, "zero weight must never be picked");
-    assert!(counts[1] > counts[0] * 2, "3x weight must dominate: {counts:?}");
+    assert!(
+        counts[1] > counts[0] * 2,
+        "3x weight must dominate: {counts:?}"
+    );
     assert_eq!(r.weighted(&[]), 0);
     assert_eq!(r.weighted(&[0.0, 0.0]), 0);
 }
@@ -158,7 +165,7 @@ fn hash_helpers_are_stable_and_well_spread() {
     for x in 0..32i32 {
         for y in 0..32i32 {
             let u = city_math::hash::hash2d_unit(x, y, 11);
-            assert!(u >= 0.0 && u <= 1.0, "{u}");
+            assert!((0.0..=1.0).contains(&u), "{u}");
         }
     }
 }
@@ -169,6 +176,9 @@ fn world_to_cell_quantises() {
     assert_eq!(city_math::hash::world_to_cell(7.9, 8.0), 0);
     assert_eq!(city_math::hash::world_to_cell(8.1, 8.0), 1);
     assert_eq!(city_math::hash::world_to_cell(-0.1, 8.0), -1);
-    assert_eq!(city_math::hash::world_to_cell(100.0, 0.0), 0, "bad cell size is safe");
+    assert_eq!(
+        city_math::hash::world_to_cell(100.0, 0.0),
+        0,
+        "bad cell size is safe"
+    );
 }
-

@@ -25,26 +25,27 @@
 //!
 //! let city = City::generate(CityParams::default());
 //! assert!(city.buildings().len() > 50);
-//! assert!(city.is_walkable(city.spawn_point()));
+//! assert!(city.is_walkable(city.spawn_point(), 0.5));
 //! ```
 
 #![forbid(unsafe_code)]
 
 mod buildings;
+mod generate;
 mod index;
 mod params;
 mod props;
 mod roads;
 mod walk;
 
-pub use buildings::{FacadeStyle, Building, RoofKind};
-pub use index::{SpatialIndex, CELL_SIZE};
+pub use buildings::{Building, FacadeStyle, RoofKind};
+pub use index::{IndexItem, IndexKind, SpatialIndex, CELL_SIZE};
 pub use params::{CityParams, LandMix};
 pub use props::{Prop, PropKind};
 pub use roads::{Axis, Crossing, Intersection, Lane, Road, RoadKind};
 pub use walk::{CrossingLink, SidewalkLoop};
 
-use city_math::{Aabb2, Rng, Vec2};
+use city_math::{Aabb2, Vec2};
 
 /// Land use of a block.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -114,17 +115,71 @@ impl City {
             crossings: Vec::new(),
             loops: Vec::new(),
             links: Vec::new(),
-            index: SpatialIndex::new(CELL_SIZE),
+            index: SpatialIndex::new(CELL_SIZE, bounds),
             spawn: Vec2::ZERO,
         };
         city.build_roads();
         city.build_intersections();
-        city.build_blocks(&mut Rng::new(city.params.seed));
+        city.build_blocks();
+        city.build_buildings();
         city.build_walk_network();
-        city.build_props(&mut Rng::new(city.params.seed ^ 0x9e37_79b9));
+        city.build_props();
         city.rebuild_index();
         city.pick_spawn();
         city
+    }
+
+    // --- generation pipeline --------------------------------------------
+
+    /// Step 1: carriageways and lanes.
+    fn build_roads(&mut self) {
+        roads::build_roads(&self.params, &mut self.roads, &mut self.lanes);
+    }
+
+    /// Junctions, plus the lane graph between them.
+    fn build_intersections(&mut self) {
+        roads::build_intersections(&self.params, &mut self.intersections);
+        roads::connect_lanes(&mut self.lanes, &mut self.intersections);
+        roads::build_crossings(&self.params, &self.roads, &mut self.crossings);
+    }
+
+    /// Blocks with their land use (contents are filled in later steps).
+    fn build_blocks(&mut self) {
+        generate::build_blocks(&self.params, &mut self.blocks);
+    }
+
+    /// Buildings of every block.
+    fn build_buildings(&mut self) {
+        generate::fill_buildings(&self.params, &mut self.blocks, &mut self.buildings);
+    }
+
+    /// Sidewalk loops and the crossing links that join them.
+    fn build_walk_network(&mut self) {
+        walk::build_loops(&self.params, &mut self.loops);
+        walk::build_links(
+            &self.params,
+            &self.loops,
+            &self.roads,
+            &self.crossings,
+            &mut self.links,
+        );
+    }
+
+    /// Sidewalk furniture and block centrepieces.
+    fn build_props(&mut self) {
+        generate::fill_props(&self.params, &mut self.blocks, &self.loops, &mut self.props);
+        generate::place_centrepieces(&self.params, &self.blocks, &mut self.props);
+    }
+
+    /// Register every solid object in the broad-phase index.
+    fn rebuild_index(&mut self) {
+        self.index = SpatialIndex::new(CELL_SIZE, self.bounds);
+        generate::build_index(&self.buildings, &self.props, &mut self.index);
+    }
+
+    /// Pick a guaranteed walkable spawn near the city centre.
+    fn pick_spawn(&mut self) {
+        self.spawn = generate::find_spawn(&self.params, &self.index, &self.loops);
     }
 
     // --- accessors -------------------------------------------------------
@@ -242,7 +297,7 @@ impl City {
         let mut pos = self.params.clamp_to_city(p);
         // Two passes: pushing out of one box can push into the neighbour.
         for _ in 0..3 {
-            let mut moved = Vec2::ZERO;
+            let before = pos;
             for id in self.index.candidates(pos, radius + 0.6) {
                 if let Some(item) = self.index.item(id) {
                     if let Some(fixed) = item.solid.push_out(pos, radius) {
@@ -250,7 +305,7 @@ impl City {
                     }
                 }
             }
-            if moved.length() < 1e-5 {
+            if pos.dist_sq(before) < 1e-10 {
                 break;
             }
         }
@@ -262,19 +317,9 @@ impl City {
         let mut best: Option<(f32, &Intersection)> = None;
         for it in &self.intersections {
             let d = p.dist_sq(it.center);
-            if best.map(|(bd, _)| best_is_closer(best, (it.center, it))) != Some(false) {
+            if best.map(|(bd, _)| d < bd).unwrap_or(true) {
+                best = Some((d, it));
             }
-            let _ = best;
-            best = match best {
-                Some((bd, node)) => {
-                    if bd <= it2_d(bd, p) {
-                        Some((bd, node))
-                    } else {
-                        Some((bd, node))
-                    }
-                }
-                None => Some((d, it)),
-            };
         }
         best.map(|(_, it)| it)
     }
@@ -283,7 +328,7 @@ impl City {
     pub fn distance_to_road(&self, p: Vec2) -> f32 {
         let mut best = f32::MAX;
         for r in &self.roads {
-            let d = (r.seg().distance(p) - r.half_width).max(0.0);
+            let d = (r.center_line(&self.params).distance(p) - r.half_width).max(0.0);
             if d < best {
                 best = d;
             }
@@ -301,11 +346,4 @@ impl City {
         }
         out
     }
-}
-
-fn it2_d(d: f32, _p: Vec2) -> f32 {
-    d
-}
-fn best_cmp(a: f32, b: f32) -> bool {
-    b < a
 }

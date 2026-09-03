@@ -112,8 +112,8 @@ pub fn wrap_period(x: f32, period: f32) -> f32 {
     if period <= 0.0 {
         return 0.0;
     }
-    let m = (x % period + period) % period;
-    m
+    
+    (x % period + period) % period
 }
 
 /// Frame-rate independent exponential smoothing factor.

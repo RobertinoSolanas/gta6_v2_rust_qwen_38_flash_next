@@ -252,14 +252,12 @@ pub fn build_links(
         let line = road.line as i32;
         let face = face_of(params, road);
         let (a, b) = match road.axis {
-            crate::roads::Axis::NorthSouth => (
-                loop_id(params, line - 1, face),
-                loop_id(params, line, face),
-            ),
-            crate::roads::Axis::EastWest => (
-                loop_id(params, face, line - 1),
-                loop_id(params, face, line),
-            ),
+            crate::roads::Axis::NorthSouth => {
+                (loop_id(params, line - 1, face), loop_id(params, line, face))
+            }
+            crate::roads::Axis::EastWest => {
+                (loop_id(params, face, line - 1), loop_id(params, face, line))
+            }
         };
         if a == b || a >= loops.len() || b >= loops.len() {
             continue;
@@ -289,6 +287,3 @@ fn face_of(params: &CityParams, road: &Road) -> i32 {
         from[1].min(to[1]) as i32
     }
 }
-
-
-

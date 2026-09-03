@@ -55,10 +55,7 @@ impl PropKind {
     pub fn is_solid(self) -> bool {
         matches!(
             self,
-            PropKind::BusStop
-                | PropKind::Barrier
-                | PropKind::Planter
-                | PropKind::Monument
+            PropKind::BusStop | PropKind::Barrier | PropKind::Planter | PropKind::Monument
         )
     }
 
@@ -141,10 +138,7 @@ impl Prop {
         let (sa, ca) = (self.yaw.sin().abs(), self.yaw.cos().abs());
         let hx = (w * sa + d * ca) * 0.5 * s;
         let hz = (w * ca + d * sa) * 0.5 * s;
-        Aabb2::from_center_size(
-            self.pos,
-            Vec2::new(hx.max(0.15), hz.max(0.15)),
-        )
+        Aabb2::from_center_size(self.pos, Vec2::new(hx.max(0.15), hz.max(0.15)))
     }
 
     /// Top of the prop in metres.

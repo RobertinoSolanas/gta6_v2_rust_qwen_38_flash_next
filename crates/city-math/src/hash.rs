@@ -24,7 +24,10 @@ pub fn hash12(a: u64, b: u64) -> u64 {
 /// stable per-lot variations.
 #[inline]
 pub fn hash2d(x: i32, y: i32, salt: u64) -> u64 {
-    hash12(((x as i64) as u64).wrapping_mul(0x1000_0000_1b3), (y as u64) ^ mix(salt))
+    hash12(
+        ((x as i64) as u64).wrapping_mul(0x1000_0000_1b3),
+        (y as u64) ^ mix(salt),
+    )
 }
 
 /// `hash2d` mapped to `0..=1`.

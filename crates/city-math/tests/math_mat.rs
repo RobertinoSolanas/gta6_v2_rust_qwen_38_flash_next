@@ -20,7 +20,10 @@ fn identity_is_neutral() {
 #[test]
 fn translation_moves_points_only() {
     let t = Mat4::translation(Vec3::new(10.0, -2.0, 4.0));
-    assert_eq!(t.point(Vec3::new(1.0, 1.0, 1.0)), Vec3::new(11.0, -1.0, 5.0));
+    assert_eq!(
+        t.point(Vec3::new(1.0, 1.0, 1.0)),
+        Vec3::new(11.0, -1.0, 5.0)
+    );
     // directions ignore translation
     assert_eq!(t.dir(Vec3::X), Vec3::X);
     assert!(approx(t.at(3, 0), 10.0));
@@ -38,7 +41,10 @@ fn scale_applies_per_axis() {
 fn yaw_rotation_follows_right_hand_rule() {
     let r = Mat4::rotate_y(PI / 2.0);
     let v = r.dir(Vec3::Z);
-    assert!(approx(v.x, 1.0) && v.z.abs() < 1e-4, "+Z yawed 90deg must be +X, got {v:?}");
+    assert!(
+        approx(v.x, 1.0) && v.z.abs() < 1e-4,
+        "+Z yawed 90deg must be +X, got {v:?}"
+    );
     let back = Mat4::rotate_y(-PI / 2.0).dir(Vec3::Z);
     assert!(approx(back.x, -1.0));
     // yaw is preserved through compose()
@@ -51,7 +57,10 @@ fn yaw_rotation_follows_right_hand_rule() {
 fn pitch_rotates_around_local_x() {
     let r = Mat4::rotate_x(PI / 2.0);
     let v = r.dir(Vec3::Z);
-    assert!(approx(v.y.abs(), 1.0), "pitch 90deg must align Z with Y, got {v:?}");
+    assert!(
+        approx(v.y.abs(), 1.0),
+        "pitch 90deg must align Z with Y, got {v:?}"
+    );
     assert!(approx(r.dir(Vec3::X).x, 1.0), "X axis is the pitch pivot");
 }
 
@@ -77,7 +86,10 @@ fn compose_matches_manual_rotation_chain() {
         (local_up.y - scale.y * pitch.cos()).abs() < 1e-3,
         "scale must be applied before pitch: {local_up:?}"
     );
-    assert!((local_up.len() - scale.y).abs() < 1e-3, "length preserved by rotation");
+    assert!(
+        (local_up.len() - scale.y).abs() < 1e-3,
+        "length preserved by rotation"
+    );
     for c in 0..4 {
         for r in 0..4 {
             assert!(
@@ -120,7 +132,10 @@ fn perspective_maps_view_depth_to_ndc() {
     for i in 1..40 {
         let z = -n - (f - n) * (i as f32 / 40.0);
         let v = ndc(z);
-        assert!(v > prev && v <= 1.0 + 1e-5, "depth must increase monotonically: {prev} -> {v}");
+        assert!(
+            v > prev && v <= 1.0 + 1e-5,
+            "depth must increase monotonically: {prev} -> {v}"
+        );
         prev = v;
     }
     let behind = p.vec4(Vec4::new(0.0, 0.0, 10.0, 1.0));
@@ -131,13 +146,19 @@ fn perspective_maps_view_depth_to_ndc() {
 fn perspective_respects_fov_and_aspect() {
     let wide = Mat4::perspective(90f32.to_radians(), 1.0, 0.1, 100.0);
     let narrow = Mat4::perspective(30f32.to_radians(), 1.0, 0.1, 100.0);
-    assert!(wide.at(0, 0) < narrow.at(0, 0), "wider fov → smaller x scale");
+    assert!(
+        wide.at(0, 0) < narrow.at(0, 0),
+        "wider fov → smaller x scale"
+    );
     let square = Mat4::perspective(60f32.to_radians(), 2.0, 0.1, 100.0);
-    assert!(square.at(0, 0) < narrow.at(0, 0), "wider aspect shrinks x scale");
+    assert!(
+        square.at(0, 0) < narrow.at(0, 0),
+        "wider aspect shrinks x scale"
+    );
     assert!(square.at(1, 1) > 1.0);
 }
 
-#[test] 
+#[test]
 fn ortho_maps_volume_to_unit_cube() {
     let o = Mat4::ortho(-10.0, 10.0, -5.0, 10.0, 0.1, 100.0);
     // View space depth is negative, just like for the perspective matrix.
@@ -168,7 +189,10 @@ fn look_at_places_eye_at_origin() {
     let eye = view.point(Vec3::new(0.0, 5.0, 10.0));
     assert!(eye.len() < 1e-3, "eye must map to origin, got {eye:?}");
     let target = view.point(Vec3::ZERO);
-    assert!(target.z < 0.0, "target must be in front of the camera (negative z)");
+    assert!(
+        target.z < 0.0,
+        "target must be in front of the camera (negative z)"
+    );
     assert!(target.y.abs() < 0.2);
 }
 
@@ -176,7 +200,10 @@ fn look_at_places_eye_at_origin() {
 fn look_at_handles_degenerate_up_vector() {
     let v = Mat4::look_at(Vec3::ZERO, Vec3::UP, Vec3::UP);
     let p = v.point(Vec3::new(1.0, 1.0, 1.0));
-    assert!(p.x.is_finite() && p.y.is_finite() && p.z.is_finite(), "{p:?}");
+    assert!(
+        p.x.is_finite() && p.y.is_finite() && p.z.is_finite(),
+        "{p:?}"
+    );
 }
 
 #[test]
@@ -191,9 +218,10 @@ fn flatten_is_column_major() {
     let r = t.row_major();
     assert_eq!(r[0], [1.0, 0.0, 0.0, 7.0]);
     assert_eq!(r[3], [0.0, 0.0, 0.0, 1.0]);
-    assert_eq!(Mat4::IDENTITY.to_flat(), [
-        1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0
-    ]);
+    assert_eq!(
+        Mat4::IDENTITY.to_flat(),
+        [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    );
 }
 
 #[test]

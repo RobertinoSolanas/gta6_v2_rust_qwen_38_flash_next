@@ -302,7 +302,10 @@ pub fn node_pos(params: &CityParams, id: usize) -> Option<Vec2> {
         return None;
     }
     let c = node_cell(params, id);
-    Some(Vec2::new(params.road_center(c[0]), params.road_center(c[1])))
+    Some(Vec2::new(
+        params.road_center(c[0]),
+        params.road_center(c[1]),
+    ))
 }
 
 /// Build all carriageways and lanes.
@@ -310,6 +313,9 @@ pub fn build_roads(params: &CityParams, roads: &mut Vec<Road>, lanes: &mut Vec<L
     let half = params.road_width * 0.5;
     let off = params.road_width * 0.25;
 
+    // (axis of travel, grid lines the carriageways sit on, faces per line).
+    // Travel along Z happens on the `road_lines_x` lines: node `k` is `node(line, k)`
+    // so a line holds `blocks_z` faces. Travel along X is the mirror image.
     let plan: [(Axis, usize, usize); 2] = [
         (Axis::NorthSouth, params.road_lines_x(), params.blocks_z),
         (Axis::EastWest, params.road_lines_z(), params.blocks_x),
@@ -320,11 +326,18 @@ pub fn build_roads(params: &CityParams, roads: &mut Vec<Road>, lanes: &mut Vec<L
             let at = params.road_center(line);
             let kind = kind_for(line, params.major_period);
             for k in 0..faces {
-                let (a, b) = if axis.is_x() {
-                    (node_id(params, k, line), node_id(params, k + 1, line))
-                } else {
-                    (node_id(params, line, k), node_id(params, line, k + 1))
+                let (a, b) = match axis {
+                    // Runs along X: the varying coordinate is the X line index.
+                    Axis::EastWest => (node_id(params, k, line), node_id(params, k + 1, line)),
+                    // Runs along Z: the varying coordinate is the second index.
+                    Axis::NorthSouth => (node_id(params, line, k), node_id(params, line, k + 1)),
                 };
+                // A face must stay on its own grid line: `k + 1` may not run past the
+                // last line of the grid, or the node id would wrap onto another line.
+                debug_assert!(a < params.node_count() && b < params.node_count());
+                if a >= params.node_count() || b >= params.node_count() {
+                    continue;
+                }
                 let start = node_pos(params, a).unwrap_or(Vec2::ZERO);
                 let end = node_pos(params, b).unwrap_or(Vec2::ZERO);
                 let road_id = roads.len();
@@ -368,7 +381,7 @@ pub fn build_roads(params: &CityParams, roads: &mut Vec<Road>, lanes: &mut Vec<L
 }
 
 fn kind_for(line: usize, major: usize) -> RoadKind {
-    if major > 1 && line % major == 0 {
+    if major > 1 && line.is_multiple_of(major) {
         RoadKind::Avenue
     } else {
         RoadKind::Street
@@ -436,6 +449,9 @@ pub fn connect_lanes(lanes: &mut [Lane], intersections: &mut [Intersection]) {
             it.departures = std::mem::take(&mut departures[it.id]);
         }
     }
+    // `dir` is copied out first: `lanes` is mutably borrowed by the outer loop, so it
+    // cannot be indexed while `lane` is alive.
+    let dirs: Vec<Vec2> = lanes.iter().map(|l| l.dir).collect();
     for lane in lanes.iter_mut() {
         let node = lane.nodes[1];
         let mut targets = Vec::new();
@@ -444,7 +460,7 @@ pub fn connect_lanes(lanes: &mut [Lane], intersections: &mut [Intersection]) {
                 if cand == lane.id {
                     continue;
                 }
-                let alignment = lanes[cand].dir.dot(lane.dir);
+                let alignment = dirs[cand].dot(lane.dir);
                 // straight ≈ 1 · turn ≈ 0 · U-turn ≈ -1 (legal but very unlikely)
                 let weight = if alignment > 0.98 {
                     6.0

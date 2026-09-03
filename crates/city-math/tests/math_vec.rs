@@ -56,7 +56,10 @@ fn vec3_basis_and_cross() {
 fn vec3_projection_to_ground() {
     let p = Vec3::new(3.0, 9.0, -4.0);
     assert_eq!(p.xz(), Vec2::new(3.0, -4.0));
-    assert_eq!(Vec3::from_xz(Vec2::new(1.0, 2.0), 7.0), Vec3::new(1.0, 7.0, 2.0));
+    assert_eq!(
+        Vec3::from_xz(Vec2::new(1.0, 2.0), 7.0),
+        Vec3::new(1.0, 7.0, 2.0)
+    );
     assert_eq!(p.as_array(), [3.0, 9.0, -4.0]);
 }
 
@@ -94,7 +97,10 @@ fn vec3_min_max_and_assign_ops() {
 fn vec3_clamp_len_and_lerp() {
     let v = Vec3::new(0.0, 0.0, 50.0).clamp_len(1.0);
     assert!((v.len() - 1.0).abs() < 1e-4);
-    assert_eq!(Vec3::ZERO.lerp(Vec3::new(4.0, 8.0, 2.0), 0.5), Vec3::new(2.0, 4.0, 1.0));
+    assert_eq!(
+        Vec3::ZERO.lerp(Vec3::new(4.0, 8.0, 2.0), 0.5),
+        Vec3::new(2.0, 4.0, 1.0)
+    );
     assert_eq!(Vec3::ZERO.clamp_len(2.0), Vec3::ZERO);
 }
 
@@ -143,7 +149,10 @@ fn angle_wrapping_is_symmetric() {
     assert!((city_math::wrap_angle(-PI * 2.5) + PI / 2.0).abs() < 1e-4);
     // Values already in range are untouched.
     assert!((city_math::wrap_angle(0.75) - 0.75).abs() < 1e-6);
-    assert!(!city_math::wrap_angle(f32::NAN).is_nan(), "NaN input must not spread");
+    assert!(
+        !city_math::wrap_angle(f32::NAN).is_nan(),
+        "NaN input must not spread"
+    );
     // shortest arc from 170deg to -170deg goes through 180, not through 0
     let a = city_math::to_rad(170.0);
     let b = city_math::to_rad(-170.0);
@@ -163,7 +172,10 @@ fn angle_wrapping_is_symmetric() {
 fn wrap_period_stays_in_range() {
     for v in [-12.5f32, -0.1, 0.0, 0.3, 7.9, 100.0] {
         let w = city_math::wrap_period(v, 24.0);
-        assert!(v >= 0.0 && (0.0..24.0).contains(&w) || v < 0.0 && (0.0..24.0).contains(&w), "v={v} w={w}");
+        assert!(
+            v >= 0.0 && (0.0..24.0).contains(&w) || v < 0.0 && (0.0..24.0).contains(&w),
+            "v={v} w={w}"
+        );
     }
     assert_eq!(city_math::wrap_period(1.0, 0.0), 0.0);
 }
@@ -174,7 +186,7 @@ fn damp_converges_monotonically() {
     let mut prev = -1.0f32;
     for _ in 0..600 {
         x = city_math::damp(x, 10.0, 8.0, 1.0 / 60.0);
-        assert!(x >= 0.0 && x <= 10.0);
+        assert!((0.0..=10.0).contains(&x));
         assert!(x >= prev);
         prev = x;
     }
