@@ -1,6 +1,26 @@
 [package]
 name = "city-app"
-description = "placeholder"
+description = "Orchestration: fixed-step world, avatar/camera/input wiring, HUD model, wasm boundary"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+city-math = { workspace = true }
+city-layout = { workspace = true }
+city-sky = { workspace = true }
+city-input = { workspace = true }
+city-avatar = { workspace = true }
+city-camera = { workspace = true }
+city-hud = { workspace = true }
+wasm-bindgen = { workspace = true }
+web-sys = { workspace = true }
+js-sys = { workspace = true }
+
+[dev-dependencies]
+city-input = { workspace = true }
+city-hud = { workspace = true }
+city-math = { workspace = true }

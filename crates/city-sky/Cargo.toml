@@ -1,6 +1,11 @@
 [package]
 name = "city-sky"
-description = "placeholder"
+description = "Day/night cycle: sun & moon direction, sky gradient, fog, exposure, light curves"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+
+[dependencies]
+city-math = { workspace = true }
+
+

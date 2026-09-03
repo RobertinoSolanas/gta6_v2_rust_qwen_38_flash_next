@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+/>
+<title>Neon Bay — procedural city</title>
+<link rel="icon" href="data:," />
+<style>
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #05070f;
+  }
+  /* the WebGL canvas and the HUD canvas injected by city-app share this box */
+  #stage {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background: #05070f;
+  }
+  #city {
+    display: block;
+    outline: none;
+    touch-action: none;
+  }
+  /* fallback message when wasm or WebGL2 is missing */
+  #fatal {
+    position: absolute;
+    left: 14px;
+    bottom: 14px;
+    color: #ffb4c4;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    white-space: pre-wrap;
+    max-width: 90vw;
+  }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="city" width="1280" height="720" tabindex="0"></canvas>
+    <pre id="boot">loading neon-bay…</pre>
+    <div id="fatal"></div>
+  </div>
+
+  <!--
+    The runtime tests load this page with ?noautoboot: the wasm module is loaded and
+    exposed, but *they* call boot(), so the WebGL2 context is created with the very
+    attributes the app asks for (preserveDrawingBuffer) — which is what makes the
+    rendered frame readable back from JS during the pixel assertions.
+  -->
+  <script>
+    window.__neonBayNoAutoBoot = /[?&]noautoboot/.test(location.search);
+  </script>
+
+  <script type="module">
+    const fatal = (msg) => {
+      const el = document.getElementById("fatal");
+      if (el) el.textContent = msg;
+      console.error("neon-bay:", String(msg));
+    };
+
+    // the boot progress line disappears as soon as the first frame lands
+    const progress = document.getElementById("boot");
+    const clearProgress = () => {
+      if (progress) progress.remove();
+    };
+
+    try {
+      const mod = await import("./pkg/city_app.js");
+      await mod.default();
+      // expose the wasm API for the runtime tests (and for tinkering in devtools)
+      window.wasm = mod;
+      if (!window.__neonBayNoAutoBoot) {
+        mod.boot();
+        clearProgress();
+        // the runtime tests wait for this flag
+        window.__neonBayReady = true;
+      }
+    } catch (err) {
+      clearProgress();
+      fatal(String((err && (err.stack || err.message)) || "boot failed"));
+      throw err;
+    }
+  </script>
+</body>
+</html>

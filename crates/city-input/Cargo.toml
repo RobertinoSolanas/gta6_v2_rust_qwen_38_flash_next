@@ -1,6 +1,9 @@
 [package]
 name = "city-input"
-description = "placeholder"
+description = "DOM-free input model: key bindings, action state, mouse delta accumulation"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+
+[dependencies]
+city-math = { workspace = true }

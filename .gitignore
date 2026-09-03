@@ -24,3 +24,9 @@ target
 # Added by cargo
 
 /target
+
+# generated wasm package (built by ./build.sh)
+/web/pkg/
+
+# headless runtime test artifacts (screenshots / report.json)
+/runtime-tests/artifacts/

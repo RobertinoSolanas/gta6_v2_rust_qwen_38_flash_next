@@ -53,7 +53,10 @@ Guiding rules for every step: **small step → `cargo build` → `cargo test` �
 * **I0 — skeleton (done)** workspace, plan, readme, `.gitignore`, empty crates, CI-ish script.
 * **I1 — city-math (done)** vectors/mat4/aabb/rng + 4 test files.
 * **I2 — city-layout (done)** deterministic grid city, buildings, props, index, collision.
-* **I3 — city-sky (done)** day/night model + curves.
+* **I3 — city-sky (done)** day/night model + curves: sun/moon arc (`sun_dir`/`moon_dir`),
+  zenith/horizon/glow bands, fog colour + view distance, exposure (`1.0` day → `2.1`
+  night), star/window/lamp/headlight/ambient curves, `SkySample` snapshot and
+  `SkyClock` (advance / `T` phase-skip / wrap). 30 tests in `city-sky/tests/sky_cycle.rs`.
 * **I4 — city-sim (done)** pedestrians + cars on the generated street graph.
 * **I5 — city-avatar + city-camera + city-input (done)** controller, rig, DOM-free input.
 * **I6 — city-tex (done)** procedural material textures.
@@ -67,6 +70,14 @@ Guiding rules for every step: **small step → `cargo build` → `cargo test` �
   rooftops, traffic lights, birds/planes?, perf, adaptive quality.
 * **I14 — docs & final QA (done)** readme, run instructions, full `cargo test --workspace`,
   clippy/fmt clean-ish, runtime suite green.
+* **I15 — browser bring-up (done)** the app boots in a browser from a clean tree:
+  `city-app` is a `cdylib` (`crate-type = ["cdylib", "rlib"]`), its WebGL2 context asks for
+  `preserveDrawingBuffer` (the frame is then readable from JS), `index.html` exposes the
+  wasm API as `window.wasm` and boots itself unless the URL carries `?noautoboot`, the HUD
+  overlay is `#hud` and stays cleared while hidden, `H` toggles it. `build.sh` / `run.sh` /
+  `check.sh` restored, `runtime-tests/` rebuilt with **zero npm dependencies** (CDP over a
+  hand-rolled WebSocket): 11 browser checks — boot, content, pixels, walk, sprint, camera,
+  night, time skip, HUD, stability, console cleanliness.
 
 ## Definition of done
 
