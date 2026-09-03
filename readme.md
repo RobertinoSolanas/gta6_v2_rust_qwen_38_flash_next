@@ -20,8 +20,8 @@ runtime. There are no image, model, font or audio files in this repository.
 # 1. build the wasm package (writes web/pkg/)
 ./build.sh                    # add --release for the fast build
 
-# 2. serve the web/ folder and open http://127.0.0.1:8080/
-./run.sh            # or: ./run.sh 9000 · python3 -m http.server 8080 --directory web
+# 2. serve the web/ folder and open http://127.0.0.1:8090/
+./run.sh            # or: ./run.sh 9000 · python3 -m http.server 8090 --directory web
 ```
 
 `build.sh` / `run.sh` / `check.sh` put `$HOME/.cargo/bin` on `PATH` themselves, and
