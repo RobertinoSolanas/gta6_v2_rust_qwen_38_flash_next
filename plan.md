@@ -26,6 +26,11 @@ Guiding rules for every step: **small step → `cargo build` → `cargo test` �
   one overall integration crate (`city-integration`), plus *runtime* tests that build the
   real WASM and drive Google Chrome headless (`runtime-tests/run.mjs`) with a handful of
   screenshots + DOM diagnostics.
+* **Chrome hygiene (hard rule):** the runtime suite always stops its headless Chrome
+  slaves and the static server when it finishes — on success, on test failure, on crash
+  and on Ctrl-C (`chrome.mjs` tracks every launched process and reaps the full process
+  tree + tmp profile dirs on exit; stale Chrome from a previous crashed run is reaped at
+  startup). No headless Chrome may survive a test run, ever.
 * **Dependencies (deliberately tiny):** `wasm-bindgen`, `web-sys`, `js-sys`
   (+ `wasm-bindgen-test` for the wasm target). Nothing else.
 

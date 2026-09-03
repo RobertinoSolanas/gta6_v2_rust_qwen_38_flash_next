@@ -17,7 +17,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { Chrome, sleep, waitForInPage } from "./chrome.mjs";
+import { Chrome, sleep, waitForInPage, reapStaleChrome } from "./chrome.mjs";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const ROOT = path.resolve(HERE, "..");
@@ -353,6 +353,29 @@ function sprintSpeedFaster(a, b) {
 // main
 // ---------------------------------------------------------------------------
 
+// Teardown handles set for the whole run — no headless Chrome may survive the suite.
+let chrome = null;
+let server = null;
+
+async function teardown() {
+  if (chrome) {
+    try {
+      await chrome.stop();
+    } catch {
+      /* ignore */
+    }
+    chrome = null;
+  }
+  if (server) {
+    try {
+      server.kill("SIGKILL");
+    } catch {
+      /* ignore */
+    }
+    server = null;
+  }
+}
+
 async function main() {
   if (!fs.existsSync(path.join(ROOT, "web/pkg/city_app.js"))) {
     console.error("web/pkg is missing — run ./build.sh first.");
@@ -360,13 +383,14 @@ async function main() {
   }
   fs.mkdirSync(ARTIFACTS, { recursive: true });
 
-  const server = spawn(
+  // never stack new slaves on top of ones leaked by a crashed previous run
+  reapStaleChrome();
+
+  server = spawn(
     "python3",
     ["-m", "http.server", String(PORT), "--directory", path.join(ROOT, "web"), "--bind", "127.0.0.1"],
     { stdio: ["ignore", "ignore", "pipe"] },
   );
-  let chrome = null;
-  let bootedPlain = false;
   try {
     chrome = await Chrome.start();
     page = chrome;
@@ -377,8 +401,7 @@ async function main() {
     await runSuite();
     await chrome.screenshot(path.join(ARTIFACTS, "final.png"));
   } finally {
-    if (chrome) await chrome.stop();
-    server.kill("SIGKILL");
+    await teardown();
   }
 
   const passed = results.filter((r) => r.ok).length;
@@ -391,7 +414,9 @@ async function main() {
   process.exit(passed === results.length ? 0 : 1);
 }
 
-main().catch((err) => {
-  console.error("\nruntime suite crashed:", err);
-  process.exit(1);
-});
+main()
+  .catch(async (err) => {
+    console.error("\nruntime suite crashed:", err);
+    await teardown();
+    process.exit(1);
+  });

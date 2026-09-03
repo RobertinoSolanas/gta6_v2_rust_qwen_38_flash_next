@@ -8,7 +8,7 @@
 import http from "node:http";
 import crypto from "node:crypto";
 import fs from "node:fs";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -35,6 +35,92 @@ const CHROME_FLAGS = [
 
 function chromeBin() {
   return process.env.CHROME_BIN || process.env.GOOGLE_CHROME_BIN || "google-chrome";
+}
+
+// ---------------------------------------------------------------------------
+// cleanup registry — never leave headless Chrome slaves behind
+// ---------------------------------------------------------------------------
+
+/** Every Chrome launched by this module, so we can reap them on exit. */
+const liveBrowsers = new Set();
+let cleanupInstalled = false;
+
+function reapSync() {
+  for (const c of liveBrowsers) {
+    try {
+      c.proc.kill("SIGKILL");
+    } catch {
+      /* ignore */
+    }
+    try {
+      fs.rmSync(c.profileDir, { recursive: true, force: true });
+    } catch {
+      /* ignore */
+    }
+  }
+  liveBrowsers.clear();
+  // belt & braces: also kill by cmdline in case a proc handle was lost
+  reapStaleChrome();
+}
+
+function installCleanup() {
+  if (cleanupInstalled) return;
+  cleanupInstalled = true;
+  // SIGINT/SIGTERM from Ctrl-C, exit for the normal & crashed paths.
+  for (const sig of ["SIGINT", "SIGTERM"]) {
+    process.on(sig, () => {
+      reapSync();
+      process.exit(1);
+    });
+  }
+  process.on("exit", reapSync);
+}
+
+/**
+ * Kill any *leftover* Neon Bay headless Chrome from previous crashed runs.
+ *
+ * Chrome re-parents its children to init when the suite dies, and only the
+ * root process carries --user-data-dir, so: find roots by cmdline marker, then
+ * walk the process tree down to the gpu/utility/renderer children.
+ */
+export function reapStaleChrome() {
+  const marker = "--user-data-dir=/tmp/neonbay-chrome-";
+  let rows;
+  try {
+    rows = spawnSync("ps", ["-eo", "pid=,ppid=,args="], { encoding: "stdout" }).stdout || "";
+  } catch {
+    return; // no ps — nothing we can do
+  }
+  const procs = [];
+  const childrenOf = new Map();
+  for (const line of rows.split("\n")) {
+    const m = line.match(/^\s*(\d+)\s+(\d+)\s+(.*)$/);
+    if (!m) continue;
+    const p = { pid: Number(m[1]), ppid: Number(m[2]), args: m[3] };
+    procs.push(p);
+    if (!childrenOf.has(p.ppid)) childrenOf.set(p.ppid, []);
+    childrenOf.get(p.ppid).push(p);
+  }
+  const doomed = new Set();
+  const mark = (p) => {
+    if (doomed.has(p.pid)) return;
+    doomed.add(p.pid);
+    for (const child of childrenOf.get(p.pid) || []) mark(child);
+  };
+  for (const p of procs) {
+    if (p.pid === process.pid) continue;
+    if (!p.args.includes(marker)) continue;
+    if (!p.args.includes("chrome")) continue;
+    mark(p);
+  }
+  for (const pid of doomed) {
+    if (pid === process.pid) continue;
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      /* already gone */
+    }
+  }
 }
 
 async function fetchJson(url, retries = 100) {
@@ -231,6 +317,7 @@ export class Chrome {
         console.error(`chrome exited early (${code})\n${stderr}`);
       }
     });
+    installCleanup();
     const deadline = Date.now() + 45000;
     let wsUrl = null;
     while (Date.now() < deadline && !wsUrl) {
@@ -238,7 +325,19 @@ export class Chrome {
       if (m) wsUrl = m[1];
       else await sleep(120);
     }
-    if (!wsUrl) throw new Error(`Chrome did not expose DevTools.\nstderr:\n${stderr}`);
+    if (!wsUrl) {
+      try {
+        proc.kill("SIGKILL");
+      } catch {
+        /* ignore */
+      }
+      try {
+        fs.rmSync(profileDir, { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
+      throw new Error(`Chrome did not expose DevTools.\nstderr:\n${stderr}`);
+    }
     return { proc, wsUrl, profileDir };
   }
 
@@ -251,6 +350,15 @@ export class Chrome {
     const ws = await connectWebSocket(page.webSocketDebuggerUrl);
     const chrome = new Chrome(proc, ws, profileDir);
     chrome.browserWsUrl = wsUrl;
+    liveBrowsers.add(chrome);
+    // if the websocket dies but the process survives, do not leak the process
+    ws.onclose = () => {
+      try {
+        if (proc.exitCode === null) proc.kill("SIGKILL");
+      } catch {
+        /* ignore */
+      }
+    };
     return chrome;
   }
 
@@ -342,6 +450,13 @@ export class Chrome {
   }
 
   async stop() {
+    liveBrowsers.delete(this);
+    try {
+      // ask the browser to shut down its whole process tree cleanly first
+      await Promise.race([this.send("Browser.close").catch(() => {}), sleep(2000)]);
+    } catch {
+      /* ignore */
+    }
     try {
       this.ws.close();
     } catch {

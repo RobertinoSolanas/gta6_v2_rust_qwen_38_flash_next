@@ -51,6 +51,14 @@ so the WebGL2 context keeps the app's own attributes (`preserveDrawingBuffer`),
 which is what lets the suite read rendered pixels back. Artifacts (screenshots +
 `report.json`) go to `runtime-tests/artifacts/`.
 
+**Cleanup rule: the suite must never leave headless Chrome slaves running.**
+`chrome.mjs` registers every Chrome it launches and reaps them (process tree +
+tmp profile dir) on `stop()`, on `SIGINT`/`SIGTERM` and on process exit; it also
+reaps Chrome instances leaked by a *previous* crashed run before starting, and
+`Browser.close` is requested before killing the process. When driving Chrome by
+hand (outside the suite), always kill it when you are done:
+`pkill -f 'user-data-dir=/tmp/neonbay-chrome-'`.
+
 Tests live in each crate's own `tests/` folder, separate from the source. Today that is
 `city-math` (4 files), `city-layout` (3), `city-sky` (1), `city-input` (1) and `city-app` (1);
 `city-sim`, `city-avatar`, `city-camera`, `city-tex`, `city-mesh`, `city-render`,
