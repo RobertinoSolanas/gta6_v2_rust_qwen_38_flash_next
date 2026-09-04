@@ -82,6 +82,13 @@ version = "0.1.0"
 [[package]]
 name = "city-mesh"
 version = "0.1.0"
+dependencies = [
+ "city-avatar",
+ "city-layout",
+ "city-math",
+ "city-sim",
+ "city-tex",
+]
 
 [[package]]
 name = "city-render"

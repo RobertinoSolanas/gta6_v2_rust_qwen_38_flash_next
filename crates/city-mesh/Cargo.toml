@@ -1,6 +1,15 @@
 [package]
 name = "city-mesh"
-description = "placeholder"
+description = "Geometry builders: ground/road/sidewalk mesh, buildings, props, cars, humanoid rig + part palette"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+
+[dependencies]
+city-math = { workspace = true }
+city-layout = { workspace = true }
+city-sim = { workspace = true }
+city-avatar = { workspace = true }
+
+[dev-dependencies]
+city-tex = { workspace = true }
