@@ -48,6 +48,10 @@ pub enum HudDotKind {
     Green,
     Landmark,
     Lamp,
+    /// A simulated pedestrian.
+    Ped,
+    /// A car on the network.
+    Car,
 }
 
 /// Everything the overlay needs for one frame.
@@ -350,6 +354,8 @@ pub fn dot_size(kind: HudDotKind) -> f32 {
         HudDotKind::Green => 5.5,
         HudDotKind::Landmark => 4.0,
         HudDotKind::Lamp => 1.6,
+        HudDotKind::Ped => 1.6,
+        HudDotKind::Car => 2.4,
     }
 }
 

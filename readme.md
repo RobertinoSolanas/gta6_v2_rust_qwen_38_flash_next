@@ -3,13 +3,15 @@
 A walkable city that is generated from a single seed at runtime: road grid, sidewalks,
 crossings, blocks with buildings, parks, trees and street lamps — walked through by a
 third-person character (WASD / mouse look / Shift sprint) under a full day/night cycle
-whose lamps, exposure and sky curves follow the clock.
+whose lamps, exposure and sky curves follow the clock. The streets are alive: pedestrians
+walk the sidewalk loops, wait at kerbs and cross at the marked crossings, while traffic
+drives the lanes, queues at red lights and turns at junctions — and every agent outside a
+live window around the player is recycled back into it.
 
-What is **not** there yet (open increments in [plan.md](plan.md)): traffic and pedestrian
-simulation (`city-sim`), procedural textures (`city-tex`), the animated humanoid rig
-(`city-mesh`) and the full shadow/HDR/bloom pipeline (`city-render`) are placeholder
-crates — the streets are empty and the character is rendered as the camera focus, not yet
-as an animated body.
+What is **not** there yet (open increments in [plan.md](plan.md)): procedural textures
+(`city-tex`), the animated humanoid rig (`city-mesh`) and the full shadow/HDR/bloom
+pipeline (`city-render`) are placeholder crates — agents are still block figures and the
+render pipeline is the flat-lit first pass.
 
 Everything is **code**: geometry, sky, lighting and the HUD are produced by Rust at
 runtime. There are no image, model, font or audio files in this repository.
@@ -61,8 +63,8 @@ hand (outside the suite), always kill it when you are done:
 
 Tests live in each crate's own `tests/` folder, separate from the source. Today that is
 `city-math` (4 files), `city-layout` (3), `city-sky` (1), `city-input` (1),
-`city-avatar` (1 — 32 tests) and `city-app` (1);
-`city-sim`, `city-camera`, `city-tex`, `city-mesh`, `city-render`,
+`city-avatar` (1 — 32 tests), `city-sim` (2 — pedestrians, traffic) and `city-app` (2);
+`city-camera`, `city-tex`, `city-mesh`, `city-render`,
 `city-hud` and `city-integration` still need theirs (see *Test status* in
 [plan.md](plan.md)), which the browser suite currently covers in part.
 
@@ -73,7 +75,7 @@ Tests live in each crate's own `tests/` folder, separate from the source. Today 
 | `city-math` | shared kernel: vec/mat/AABB/hash/PCG-RNG (no external math crate) |
 | `city-layout` | city generation: blocks, roads, sidewalks, lots, props, spatial index, collision |
 | `city-sky` | day/night: sun & moon direction, sky gradient, fog, exposure, light curves |
-| `city-sim` | *placeholder* — traffic lanes + car flow, pedestrian crowd steering |
+| `city-sim` | crowd: pedestrians walk sidewalk arcs, wait at kerbs, cross at crossings; cars drive lanes, queue at lights, turn at junctions; the live window around the player recycles its agents |
 | `city-avatar` | third-person character controller and skeletal pose |
 | `city-camera` | orbit rig, mouse look, occlusion pull-back, smoothing |
 | `city-input` | DOM-independent keyboard/mouse action model |
@@ -92,5 +94,6 @@ large test suite possible without a browser.
 
 Implementation state, crate-by-crate use cases and the measured test status live in
 **[plan.md](plan.md)**. Current phase: **I13 — polish & tuning** — the app boots and runs
-in the browser (**I15** done, 175 native + 11 runtime tests green); what is left is the
-visual pass and the missing per-crate test folders.
+in the browser (**I15** done); **I4** is done too — the city has pedestrians and traffic
+(**223 native + 12 runtime tests** green). What is left is the visual pass (I13) and the
+remaining per-crate test folders.

@@ -11,6 +11,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 city-math = { workspace = true }
 city-layout = { workspace = true }
+city-sim = { workspace = true }
 city-sky = { workspace = true }
 city-input = { workspace = true }
 city-avatar = { workspace = true }
@@ -24,3 +25,4 @@ js-sys = { workspace = true }
 city-input = { workspace = true }
 city-hud = { workspace = true }
 city-math = { workspace = true }
+serde_json = "1"

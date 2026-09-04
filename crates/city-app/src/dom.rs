@@ -1,6 +1,8 @@
 //! Browser glue: WebGL2 renderer, Canvas2D HUD, DOM events and the rAF loop.
 //!
 //! The simulation lives in [`crate::world`]; this module is only about pixels and events.
+//! It only compiles for the wasm target (the browser is the only place WebGL2 exists);
+//! the native build — and therefore `cargo test` — never sees any of it.
 
 #![forbid(unsafe_code)]
 
@@ -43,6 +45,10 @@ pub struct App {
     city_vao: Option<WebGlVertexArrayObject>,
     _city_vbo: Option<WebGlBuffer>,
     city_count: i32,
+    /// Dynamic VAO holding the crowd and the traffic (re-uploaded every frame).
+    agent_vao: Option<WebGlVertexArrayObject>,
+    _agent_vbo: Option<WebGlBuffer>,
+    agent_count: i32,
     last_ms: f64,
     ready: bool,
     error: Option<String>,
@@ -92,6 +98,9 @@ impl App {
             city_vao: None,
             _city_vbo: None,
             city_count: 0,
+            agent_vao: None,
+            _agent_vbo: None,
+            agent_count: 0,
             last_ms: 0.0,
             ready: false,
             error: None,
@@ -115,6 +124,10 @@ impl App {
     /// JSON snapshot of the world (browser diagnostics).
     pub fn snapshot_json(&self) -> String {
         self.world.snapshot_json()
+    }
+    /// The simulated crowd as JSON (used by the runtime tests).
+    pub fn crowd_json(&self) -> String {
+        self.world.crowd_json()
     }
     /// Frames drawn so far.
     pub fn frames(&self) -> u64 {
@@ -154,6 +167,7 @@ impl App {
         };
         self.last_ms = now_ms;
         self.world.tick(dt as f32);
+        self.upload_agents();
         self.error = self.render().err();
         self.draw_hud();
         self.ready = true;
@@ -213,6 +227,12 @@ impl App {
             set_f32(&self.gl, &self.city_program, "u_exposure", sky.exposure);
             self.gl.bind_vertex_array(self.city_vao.as_ref());
             self.gl.draw_arrays(Gl::TRIANGLES, 0, self.city_count);
+
+            // ---- crowd + traffic (dynamic) -----------------------------
+            if self.agent_count > 0 {
+                self.gl.bind_vertex_array(self.agent_vao.as_ref());
+                self.gl.draw_arrays(Gl::TRIANGLES, 0, self.agent_count);
+            }
             self.gl.bind_vertex_array(None);
         }
         self.gl.use_program(None);
@@ -220,6 +240,42 @@ impl App {
             return Err(format!("gl error {}", self.gl.get_error()));
         }
         Ok(())
+    }
+
+    /// Rebuild the dynamic agent mesh (crowd + traffic) and upload it.
+    fn upload_agents(&mut self) {
+        let mut m = crate::mesh::MeshBuilder::new();
+        let headlight = self.world.sample().headlight;
+        crate::agents::build_agents(
+            self.world.crowd().peds(),
+            self.world.crowd().cars(),
+            headlight,
+            &mut m,
+        );
+        let verts = m.into_vec();
+        self.agent_count = (verts.len() / FLOATS_PER_VERTEX) as i32;
+        let gl = &self.gl;
+        if self.agent_vao.is_none() {
+            let vao = gl.create_vertex_array();
+            let vbo = gl.create_buffer();
+            gl.bind_vertex_array(vao.as_ref());
+            gl.bind_buffer(Gl::ARRAY_BUFFER, vbo.as_ref());
+            gl.buffer_data_with_u8_array(Gl::ARRAY_BUFFER, &f32_bytes(&verts), Gl::DYNAMIC_DRAW);
+            gl.enable_vertex_attrib_array(0);
+            gl.vertex_attrib_pointer_with_i32(0, 3, Gl::FLOAT, false, STRIDE, 0);
+            gl.enable_vertex_attrib_array(1);
+            gl.vertex_attrib_pointer_with_i32(1, 3, Gl::FLOAT, false, STRIDE, 12);
+            gl.enable_vertex_attrib_array(2);
+            gl.vertex_attrib_pointer_with_i32(2, 3, Gl::FLOAT, false, STRIDE, 24);
+            gl.bind_vertex_array(None);
+            self.agent_vao = vao;
+            self._agent_vbo = vbo;
+            return;
+        }
+        // Steady state: only the buffer contents change.
+        let vbo = self._agent_vbo.clone();
+        gl.bind_buffer(Gl::ARRAY_BUFFER, vbo.as_ref());
+        gl.buffer_data_with_u8_array(Gl::ARRAY_BUFFER, &f32_bytes(&verts), Gl::DYNAMIC_DRAW);
     }
 
     /// (Re)build the static city mesh.
@@ -259,9 +315,40 @@ impl App {
             // "/" hides the HUD: the overlay stays cleared, nothing is painted
             return;
         }
-        let f = self.world.hud_frame();
+        let mut f = self.world.hud_frame();
+        // Street life on the radar: the crowd and the traffic within range.
+        let crowd = self.world.crowd();
+        let radar = self.world.radar();
+        for ped in crowd.peds() {
+            if radar.outside(city_math::Vec2::new(ped.x, ped.z)) {
+                continue;
+            }
+            f.dots.push(city_hud::HudDot {
+                p: radar.project(city_math::Vec2::new(ped.x, ped.z)),
+                size: city_hud::dot_size(city_hud::HudDotKind::Ped),
+                kind: city_hud::HudDotKind::Ped,
+            });
+        }
+        for car in crowd.cars() {
+            if radar.outside(car.pos) {
+                continue;
+            }
+            f.dots.push(city_hud::HudDot {
+                p: radar.project(car.pos),
+                size: city_hud::dot_size(city_hud::HudDotKind::Car),
+                kind: city_hud::HudDotKind::Car,
+            });
+        }
         let _ = ctx.set_transform(dpr, 0.0, 0.0, dpr, 0.0, 0.0);
         paint_hud(ctx, &f, (w / dpr) as f32, (h / dpr) as f32);
+    }
+
+    /// Draw one frame right now (used by `wasm.step_frame()` and the screenshot tests).
+    pub fn render_once(&mut self) {
+        self.upload_agents();
+        self.error = self.render().err();
+        self.draw_hud();
+        self.ready = true;
     }
 }
 
@@ -378,6 +465,8 @@ fn radar(ctx: &web_sys::CanvasRenderingContext2d, f: &city_hud::HudFrame, r: f64
             city_hud::HudDotKind::Player => ("rgba(255,242,150,1.0)", d.size * 1.25),
             city_hud::HudDotKind::Landmark => ("rgba(255,110,215,0.95)", d.size),
             city_hud::HudDotKind::Lamp => ("rgba(255,214,132,0.75)", d.size),
+            city_hud::HudDotKind::Ped => ("rgba(255,150,150,0.95)", d.size),
+            city_hud::HudDotKind::Car => ("rgba(150,210,255,0.95)", d.size),
         };
         ctx.set_fill_style(&JsValue::from_str(col));
         dot(ctx, cx + (d.p[0] * r as f32) as f64, cy + (d.p[1] * r as f32) as f64, size as f64);

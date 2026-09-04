@@ -9,6 +9,7 @@ use city_hud::{self, HudFrame, HudInput};
 use city_input::{action_for_key, InputAction, InputState};
 use city_layout::{City, CityParams};
 use city_math::Vec2;
+use city_sim::{Crowd, SimConfig};
 use city_sky::{Sky, SkyClock, SkySample};
 
 /// Fixed simulation step (s) — the world is stepped at a constant rate.
@@ -49,6 +50,7 @@ pub struct World {
     avatar: Avatar,
     camera: Camera,
     input: InputState,
+    crowd: Crowd,
     hud_range: f32,
     north_up: bool,
     hud_visible: bool,
@@ -86,6 +88,8 @@ pub struct SimSnapshot {
     pub cam_count: usize,
     pub occluded: bool,
     pub walked: f32,
+    pub peds: usize,
+    pub cars: usize,
     pub buildings: usize,
     pub props: usize,
     pub roads: usize,
@@ -104,6 +108,7 @@ impl World {
         let mut camera = Camera::new(CameraConfig::default());
         camera.set_yaw(0.9);
         camera.snap(avatar.focus());
+        let crowd = Crowd::new(&city, SimConfig::default());
         World {
             city,
             sky: Sky::new(cfg.azimuth),
@@ -111,6 +116,7 @@ impl World {
             avatar,
             camera,
             input: InputState::new(),
+            crowd,
             hud_range: city_hud::RADAR_RANGE,
             north_up: cfg.north_up_radar,
             hud_visible: true,
@@ -138,6 +144,10 @@ impl World {
     }
     pub fn input(&self) -> &InputState {
         &self.input
+    }
+    /// The crowd + traffic simulation.
+    pub fn crowd(&self) -> &Crowd {
+        &self.crowd
     }
     pub fn sky(&self) -> &Sky {
         &self.sky
@@ -232,8 +242,8 @@ impl World {
         );
         let _ = writeln!(
             o,
-            "\"occluded\":{},\"walked\":{:.1},\"buildings\":{},\"props\":{},\"roads\":{},",
-            s.occluded, s.walked, s.buildings, s.props, s.roads
+            "\"occluded\":{},\"walked\":{:.1},\"peds\":{},\"cars\":{},\"buildings\":{},\"props\":{},\"roads\":{},",
+            s.occluded, s.walked, s.peds, s.cars, s.buildings, s.props, s.roads
         );
         let _ = write!(
             o,
@@ -244,6 +254,36 @@ impl World {
             s.skipping,
             s.tip.replace('\"', "")
         );
+        o
+    }
+
+    /// The crowd alone, as JSON: `wasm.crowd_json()` is what the runtime tests read.
+    pub fn crowd_json(&self) -> String {
+        let mut o = String::with_capacity(4096);
+        use std::fmt::Write as _;
+        let _ = write!(o, "{{\"peds\":[");
+        for (i, p) in self.crowd.peds().iter().enumerate() {
+            if i > 0 {
+                o.push(',');
+            }
+            let _ = write!(
+                o,
+                "{{\"x\":{:.2},\"z\":{:.2},\"v\":{:.2},\"state\":{}}}",
+                p.x, p.z, p.speed, ped_state_code(p.state)
+            );
+        }
+        let _ = write!(o, "],\"cars\":[");
+        for (i, c) in self.crowd.cars().iter().enumerate() {
+            if i > 0 {
+                o.push(',');
+            }
+            let _ = write!(
+                o,
+                "{{\"x\":{:.2},\"z\":{:.2},\"v\":{:.2},\"lane\":{}}}",
+                c.pos.x, c.pos.y, c.speed, c.lane
+            );
+        }
+        o.push_str("]}");
         o
     }
 
@@ -327,6 +367,10 @@ impl World {
         let sprint = self.input.held(InputAction::Sprint);
         self.avatar.update(&self.city, wish, self.camera.yaw(), sprint, dt);
         self.camera.update(&self.city, self.avatar.focus(), dt);
+        // The street crowd lives around the character; it is stepped after the avatar
+        // so the live window follows the position the player actually reached.
+        self.crowd
+            .step_around(&self.city, self.avatar.xz(), dt);
         self.input.end_frame();
     }
 
@@ -360,6 +404,16 @@ impl World {
         city_hud::build(&input)
     }
 
+    /// The radar transform the HUD paints with (the crowd markers need it too).
+    pub fn radar(&self) -> city_hud::Radar {
+        city_hud::Radar::new(
+            self.avatar.xz(),
+            self.camera.yaw(),
+            self.hud_range,
+            self.north_up,
+        )
+    }
+
     /// Diagnostics for the DOM / tests.
     pub fn snapshot(&self) -> SimSnapshot {
         let s = self.sample();
@@ -382,6 +436,8 @@ impl World {
             cam_count: DISTANCES.len(),
             occluded: self.camera.occluded(),
             walked: round1(self.avatar.distance_walked()),
+            peds: self.crowd.peds().len(),
+            cars: self.crowd.cars().len(),
             buildings: self.city.buildings().len(),
             props: self.city.props().len(),
             roads: self.city.roads().len(),
@@ -407,6 +463,15 @@ fn round1(v: f32) -> f32 {
 #[inline]
 fn round2(v: f32) -> f32 {
     (v * 100.0).round() / 100.0
+}
+
+/// Walk state as a small integer for the JSON feed (0 walk, 1 cross, 2 wait).
+fn ped_state_code(state: city_sim::PedState) -> u8 {
+    match state {
+        city_sim::PedState::Walking => 0,
+        city_sim::PedState::Crossing => 1,
+        city_sim::PedState::Waiting => 2,
+    }
 }
 
 #[inline]

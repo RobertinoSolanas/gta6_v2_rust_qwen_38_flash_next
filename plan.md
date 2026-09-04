@@ -62,9 +62,25 @@ Guiding rules for every step: **small step → `cargo build` → `cargo test` �
   zenith/horizon/glow bands, fog colour + view distance, exposure (`1.0` day → `2.1`
   night), star/window/lamp/headlight/ambient curves, `SkySample` snapshot and
   `SkyClock` (advance / `T` phase-skip / wrap). 30 tests in `city-sky/tests/sky_cycle.rs`.
-* **I4 — city-sim (pending)** placeholder crate — pedestrians and traffic are simulated
-  nowhere today, so the streets are empty; `city-layout` does generate the lanes, crossings
-  and sidewalks they will drive/walk on.
+* **I4 — city-sim (done)** the crowd lives in the streets. `city-sim` owns two agent
+  kinds over the network `city-layout` generates:
+  *Pedestrians* (`crowd.rs`) walk one sidewalk loop at a time by arc length `s`, in one of
+  three parallel walking lines (`LANE_OFFSETS`), slow down behind a closing neighbour
+  (`CONGEST_GAP`) and never overlap (`MIN_GAP`); at a junction approach each walker decides
+  once whether to cross (`CROSS_CHANCE`) and then walks the marked crossing link kerb to
+  kerb, waiting at the kerb while a car is still on the crossing (`PedState::{Walking,
+  Crossing, Waiting}`); the walk-cycle phase advances with the stride (`PED_STRIDE`).
+  *Cars* (`cars.rs`) follow lanes, respect the speed limit scaled by a per-driver `nerve`,
+  brake at a red light in sight (`Intersection::light_green`), queue behind the car ahead
+  with a standstill gap, turn at junctions onto one of the `next` lanes (`TURN_CHANCE`),
+  and reverse out of a jam that lasted `GRIDLOCK_SECONDS`. `spawn.rs` owns the live window:
+  agents farther than `LIVE_RADIUS` from the focus are recycled onto loops/lanes in the
+  respawn ring, so population is constant and the sim cost is local. The crowd is stepped
+  by `World::step` around the avatar, drawn every frame by `city-app/src/agents.rs` into a
+  dynamic VBO (and as radar dots on the HUD), and exposed to the browser as
+  `wasm.crowd_json()`. `city-sim/tests/sim_pedestrians.rs` (20) and `sim_traffic.rs` (23)
+  cover spawn invariants, congestion, crossings, red lights, turning, queueing, recycling,
+  determinism; `city-app/tests/app_crowd.rs` (4) covers the crowd as the app runs it.
 * **I5 — city-avatar + city-camera + city-input (done)** controller, rig, DOM-free input.
   `city-avatar/tests/avatar_controller.rs` now covers it (32 tests): camera-relative
   walk/sprint/back/strafe against the real axis convention (`wish = (strafe, forward)`,
@@ -103,17 +119,18 @@ Guiding rules for every step: **small step → `cargo build` → `cargo test` �
   wasm API as `window.wasm` and boots itself unless the URL carries `?noautoboot`, the HUD
   overlay is `#hud` and stays cleared while hidden, `H` toggles it. `build.sh` / `run.sh` /
   `check.sh` restored, `runtime-tests/` rebuilt with **zero npm dependencies** (CDP over a
-  hand-rolled WebSocket): 11 browser checks — boot, content, pixels, walk, sprint, camera,
-  night, time skip, HUD, stability, console cleanliness.
+  hand-rolled WebSocket): 12 browser checks — boot, content, crowd, pixels, walk, sprint,
+  camera, night, time skip, HUD, stability, console cleanliness.
 
 ## Test status (as measured)
 
-`cargo test --workspace` → **175 passed / 0 failed**; `node runtime-tests/run.mjs` →
-**11 / 11** in headless Chrome; `./check.sh` → green.
+`cargo test --workspace` → **223 passed / 0 failed**; `node runtime-tests/run.mjs` →
+**12 / 12** in headless Chrome; `./check.sh` → green.
 
 Per-crate `tests/` folders that exist today: `city-math` (4 files), `city-layout` (3),
-`city-sky` (1 — 30 tests), `city-input` (1), `city-avatar` (1 — 32 tests) and `city-app`
-(1). Still to write: `city-sim`, `city-camera`, `city-tex`, `city-mesh`, `city-render`,
+`city-sky` (1 — 30 tests), `city-input` (1), `city-avatar` (1 — 32 tests),
+`city-sim` (2 — 43 tests) and `city-app` (2 — 25 tests). Still to write: `city-camera`,
+`city-tex`, `city-mesh`, `city-render`,
 `city-hud`, `city-integration` — the runtime suite currently covers part of that gap from
 the browser side. `city-render` is additionally still a placeholder implementation.
 

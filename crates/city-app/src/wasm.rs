@@ -217,6 +217,12 @@ pub fn snapshot_json() -> String {
     with_app(|app| app.snapshot_json())
 }
 
+/// The simulated crowd (pedestrians and traffic) as JSON.
+#[wasm_bindgen]
+pub fn crowd_json() -> String {
+    with_app(|app| app.crowd_json())
+}
+
 /// Draw one frame right now (screenshot tests).
 #[wasm_bindgen]
 pub fn render_frame() {
@@ -227,6 +233,15 @@ pub fn render_frame() {
 #[wasm_bindgen]
 pub fn step_seconds(seconds: f64) {
     with_app(|app| app.world_mut().tick(seconds as f32));
+}
+
+/// Advance the world by one frame (1/60 s) and draw it: what the runtime tests drive.
+#[wasm_bindgen]
+pub fn step_frame() {
+    with_app(|app| {
+        app.world_mut().tick(1.0 / 60.0);
+        app.render_once();
+    });
 }
 
 /// Skip to the next phase of the day.

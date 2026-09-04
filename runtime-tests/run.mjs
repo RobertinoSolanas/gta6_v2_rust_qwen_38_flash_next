@@ -4,7 +4,8 @@
 //
 // Boots the page in headless Chrome (SwiftShader WebGL2) and asserts:
 //   * boot: wasm init + first frame + no renderer error
-//   * content: buildings / props / roads generated
+//   * content: buildings / props / roads / crowd generated
+//   * crowd: pedestrians and traffic move, nobody leaves the network
 //   * pixels: the GL canvas is not black
 //   * walk & sprint: the avatar moves, Shift is faster than walking
 //   * camera: F cycles the orbit preset
@@ -163,13 +164,59 @@ async function runSuite() {
     notes.frames_at_boot = frames;
   });
 
-  await test("content: city generated (buildings, props, roads, clock)", async () => {
+  await test("content: city generated (buildings, props, roads, crowd, clock)", async () => {
     const s = await snap();
     assert(s.buildings > 100, `too few buildings: ${s.buildings}`);
     assert(s.props > 100, `too few props: ${s.props}`);
     assert(s.roads > 0, `no roads: ${s.roads}`);
+    assert(s.peds > 0, `no pedestrians simulated: ${s.peds}`);
+    assert(s.cars > 0, `no cars simulated: ${s.cars}`);
     assert(/^\d{2}:\d{2}$/.test(s.clock), `bad clock string: ${s.clock}`);
-    notes.city = { buildings: s.buildings, props: s.props, roads: s.roads, clock: s.clock };
+    notes.city = {
+      buildings: s.buildings,
+      props: s.props,
+      roads: s.roads,
+      peds: s.peds,
+      cars: s.cars,
+      clock: s.clock,
+    };
+  });
+
+  await test("crowd: pedestrians and traffic live and move", async () => {
+    // The browser steps the world once per rAF; `wasm.step_frame()` exposes exactly one
+    // frame so the crowd is sampled at the same rate as the sim runs.
+    const before = JSON.parse(await page.evaluate("wasm.crowd_json()", { awaitPromise: false }));
+    for (let i = 0; i < 180; i++) {
+      await page.evaluate("wasm.step_frame()", { awaitPromise: false });
+    }
+    const after = JSON.parse(await page.evaluate("wasm.crowd_json()", { awaitPromise: false }));
+    assert(after.peds.length === before.peds.length, "pedestrian count changed at runtime");
+    assert(after.cars.length === before.cars.length, "car count changed at runtime");
+
+    // Recycling may teleport an agent that left the live window, so a handful of
+    // unchanged positions is fine; a crowd that never moves is not.
+    const walked = after.peds.filter(
+      (p, i) => Math.hypot(p.x - before.peds[i].x, p.z - before.peds[i].z) > 0.5,
+    ).length;
+    assert(walked > after.peds.length * 0.6, `only ${walked} pedestrians moved`);
+
+    const rolling = after.cars.filter((c) => c.v > 0.5).length;
+    assert(rolling > 0, "not a single car is moving");
+
+    for (const p of after.peds) {
+      assert(Number.isFinite(p.x) && Number.isFinite(p.z), "pedestrian position went NaN");
+      assert(p.v >= 0 && p.v < 3, `pedestrian running at ${p.v} m/s`);
+    }
+    for (const c of after.cars) {
+      assert(Number.isFinite(c.x) && Number.isFinite(c.z), "car position went NaN");
+      assert(c.v >= 0 && c.v < 14, `car driving at ${c.v} m/s`);
+    }
+    notes.crowd = {
+      peds: after.peds.length,
+      peds_moved: walked,
+      cars: after.cars.length,
+      cars_moving: rolling,
+    };
   });
 
   await test("pixels: WebGL2 present and the frame is not black", async () => {

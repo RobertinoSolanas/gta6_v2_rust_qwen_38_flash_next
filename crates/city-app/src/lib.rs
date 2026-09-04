@@ -16,6 +16,8 @@
 
 #![forbid(unsafe_code)]
 
+pub mod agents;
+#[cfg(target_arch = "wasm32")]
 pub mod dom;
 pub mod mesh;
 mod shaders;

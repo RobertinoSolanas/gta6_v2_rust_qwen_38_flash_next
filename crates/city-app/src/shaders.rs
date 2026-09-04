@@ -1,3 +1,4 @@
+#![allow(dead_code)] // the native build does not link the shaders
 //! City vertex shader: world transform + attributes for the unlit-but-shaded pass.
 
 pub const CITY_VS: &str = r#"#version 300 es
