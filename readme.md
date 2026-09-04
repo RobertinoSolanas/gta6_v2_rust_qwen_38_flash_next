@@ -60,8 +60,9 @@ hand (outside the suite), always kill it when you are done:
 `pkill -f 'user-data-dir=/tmp/neonbay-chrome-'`.
 
 Tests live in each crate's own `tests/` folder, separate from the source. Today that is
-`city-math` (4 files), `city-layout` (3), `city-sky` (1), `city-input` (1) and `city-app` (1);
-`city-sim`, `city-avatar`, `city-camera`, `city-tex`, `city-mesh`, `city-render`,
+`city-math` (4 files), `city-layout` (3), `city-sky` (1), `city-input` (1),
+`city-avatar` (1 — 32 tests) and `city-app` (1);
+`city-sim`, `city-camera`, `city-tex`, `city-mesh`, `city-render`,
 `city-hud` and `city-integration` still need theirs (see *Test status* in
 [plan.md](plan.md)), which the browser suite currently covers in part.
 
@@ -91,5 +92,5 @@ large test suite possible without a browser.
 
 Implementation state, crate-by-crate use cases and the measured test status live in
 **[plan.md](plan.md)**. Current phase: **I13 — polish & tuning** — the app boots and runs
-in the browser (**I15** done, 143 native + 11 runtime tests green); what is left is the
+in the browser (**I15** done, 175 native + 11 runtime tests green); what is left is the
 visual pass and the missing per-crate test folders.

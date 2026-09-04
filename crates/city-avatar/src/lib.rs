@@ -247,17 +247,16 @@ impl Avatar {
 
     /// One simulation step.
     ///
-    /// * `wish` — camera-relative wish direction `(right, forward)`, length `0..=1`.
+    /// * `wish` — camera-relative wish axis `(x = strafe, y = forward)`, length `0..=1`
+    ///   (exactly what `city_input::InputState::move_axis` produces): `+y` walks away
+    ///   from the camera, `+x` strafes to the camera's right. The world direction is
+    ///   built as `fwd = from_angle(camera_yaw)`, `right = -fwd.perp()`, so at
+    ///   `camera_yaw = 0` the W key (`Vec2::Y`) travels along **+X** and strafing
+    ///   right travels along **-Y**.
     /// * `camera_yaw` — camera yaw, so "forward" means *away from the camera*.
     /// * `sprint` — sprint key held.
     pub fn update(&mut self, city: &City, wish: Vec2, camera_yaw: f32, sprint: bool, dt: f32) {
         self.step(city, wish, camera_yaw, sprint, dt);
-    }
-
-    /// One simulation step against an arbitrary terrain (used by tests).
-    #[allow(dead_code)]
-    fn update_unused(&mut self, city: &City, wish: Vec2, camera_yaw: f32, sprint: bool, dt: f32) {
-        self.update(city, wish, camera_yaw, sprint, dt);
     }
 
     /// One simulation step against an arbitrary terrain (used by tests).
@@ -304,9 +303,11 @@ impl Avatar {
             return;
         }
 
-        // 1. wish direction in world space (camera-relative)
+        // 1. wish direction in world space (camera-relative).
+        // Vec2::perp rotates +90 deg (x, y -> -y, x), so fwd.perp() points to the
+        // screen *left*; the wish vector's x component means "right", hence the minus.
         let fwd = Vec2::from_angle(camera_yaw);
-        let right = fwd.perp();
+        let right = -fwd.perp();
         let w = if wish.len_sq() > 1.0 {
             wish.clamp_len(1.0)
         } else {
@@ -375,12 +376,12 @@ impl Avatar {
         }
 
         // 6. advance the walk cycle from actual speed
-        let stride_len = if self.sprinting {
-            self.cfg.stride_sprint
-        } else {
-            self.cfg.stride_walk
-        };
         if self.grounded && self.speed > 0.15 {
+            let stride_len = if self.sprinting {
+                self.cfg.stride_sprint
+            } else {
+                self.cfg.stride_walk
+            };
             self.stride = wrap01(self.stride + self.speed * dt / stride_len);
         } else if !self.grounded {
             // airborne: hold the pose
@@ -448,7 +449,9 @@ impl Avatar {
             torso_pitch: 0.10 * amp + 0.10 * clamp(self.speed / self.cfg.sprint_speed, 0.0, 1.0),
             arm_l: -swing * 0.85 * amp,
             arm_r: swing * 0.85 * amp,
-            leg_l: (w + core::f32::consts::PI).sin() * 0.55 * amp,
+            // Contralateral gait: sin(w + PI) == -sin(w), so the left leg swings
+            // opposite the left arm and the right leg opposes it.
+            leg_l: -swing * 0.55 * amp,
             leg_r: swing * 0.55 * amp,
             head_pitch: head * 0.25,
             bob: -((2.0 * w + 0.5).sin().abs()) * 0.035 * amp,

@@ -66,6 +66,15 @@ Guiding rules for every step: **small step → `cargo build` → `cargo test` �
   nowhere today, so the streets are empty; `city-layout` does generate the lanes, crossings
   and sidewalks they will drive/walk on.
 * **I5 — city-avatar + city-camera + city-input (done)** controller, rig, DOM-free input.
+  `city-avatar/tests/avatar_controller.rs` now covers it (32 tests): camera-relative
+  walk/sprint/back/strafe against the real axis convention (`wish = (strafe, forward)`,
+  `right = -fwd.perp()`, camera yaw 0 looks along +X), accel/drag saturation, dt
+  clamping, gravity/jump/landing, custom `Terrain` (`update_on`) incl. kerb walk-up and
+  wall slide, building collision, walk-cycle phase rate (`speed / stride_len`) and the
+  pose invariants. Two controller bugs surfaced while writing them and are fixed in
+  `city-avatar/src/lib.rs`: the strafe axis was the **left** axis (`right = fwd.perp()`)
+  so `+x` walked to the camera's left, and the sprint gear was applied to the walk-cycle
+  length outside the "moving" branch, which made the phase advance with the wrong stride.
 * **I6 — city-tex (pending)** placeholder crate; `city-app` currently shades flat palette
   colours per material id instead of generated textures.
 * **I7 — city-mesh (pending)** placeholder crate; the geometry that is drawn is built by
@@ -99,12 +108,12 @@ Guiding rules for every step: **small step → `cargo build` → `cargo test` �
 
 ## Test status (as measured)
 
-`cargo test --workspace` → **143 passed / 0 failed**; `node runtime-tests/run.mjs` →
+`cargo test --workspace` → **175 passed / 0 failed**; `node runtime-tests/run.mjs` →
 **11 / 11** in headless Chrome; `./check.sh` → green.
 
 Per-crate `tests/` folders that exist today: `city-math` (4 files), `city-layout` (3),
-`city-sky` (1 — 30 tests), `city-input` (1), `city-app` (1). Still to write:
-`city-sim`, `city-avatar`, `city-camera`, `city-tex`, `city-mesh`, `city-render`,
+`city-sky` (1 — 30 tests), `city-input` (1), `city-avatar` (1 — 32 tests) and `city-app`
+(1). Still to write: `city-sim`, `city-camera`, `city-tex`, `city-mesh`, `city-render`,
 `city-hud`, `city-integration` — the runtime suite currently covers part of that gap from
 the browser side. `city-render` is additionally still a placeholder implementation.
 
