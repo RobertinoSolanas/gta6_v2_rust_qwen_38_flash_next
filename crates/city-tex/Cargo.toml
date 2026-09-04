@@ -1,6 +1,9 @@
 [package]
 name = "city-tex"
-description = "placeholder"
+description = "Procedural material textures (asphalt, concrete, grass, brick, metal, ...), CPU-generated, zero images"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+
+[dependencies]
+city-math = { workspace = true }

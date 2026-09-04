@@ -8,10 +8,11 @@ walk the sidewalk loops, wait at kerbs and cross at the marked crossings, while 
 drives the lanes, queues at red lights and turns at junctions — and every agent outside a
 live window around the player is recycled back into it.
 
-What is **not** there yet (open increments in [plan.md](plan.md)): procedural textures
-(`city-tex`), the animated humanoid rig (`city-mesh`) and the full shadow/HDR/bloom
-pipeline (`city-render`) are placeholder crates — agents are still block figures and the
-render pipeline is the flat-lit first pass.
+What is **not** there yet (open increments in [plan.md](plan.md)): the animated humanoid
+rig (`city-mesh`) and the full shadow/HDR/bloom pipeline (`city-render`) are placeholder
+crates — agents are still block figures and the render pipeline is the flat-lit first
+pass. The procedural textures of `city-tex` are generated and tested but not yet wired
+into the GL path (that lands with I9).
 
 Everything is **code**: geometry, sky, lighting and the HUD are produced by Rust at
 runtime. There are no image, model, font or audio files in this repository.
@@ -64,7 +65,7 @@ hand (outside the suite), always kill it when you are done:
 Tests live in each crate's own `tests/` folder, separate from the source. Today that is
 `city-math` (4 files), `city-layout` (3), `city-sky` (1), `city-input` (1),
 `city-avatar` (1 — 32 tests), `city-sim` (2 — pedestrians, traffic) and `city-app` (2);
-`city-camera`, `city-tex`, `city-mesh`, `city-render`,
+`city-camera`, `city-mesh`, `city-render`,
 `city-hud` and `city-integration` still need theirs (see *Test status* in
 [plan.md](plan.md)), which the browser suite currently covers in part.
 
@@ -79,7 +80,7 @@ Tests live in each crate's own `tests/` folder, separate from the source. Today 
 | `city-avatar` | third-person character controller and skeletal pose |
 | `city-camera` | orbit rig, mouse look, occlusion pull-back, smoothing |
 | `city-input` | DOM-independent keyboard/mouse action model |
-| `city-tex` | *placeholder* — procedural material textures (asphalt, concrete, grass, brick, metal, …) |
+| `city-tex` | procedural material textures (asphalt, concrete, sidewalk cracks, grass, brick/plaster, roof gravel, metal, road paint), CPU-generated tiles |
 | `city-mesh` | *placeholder* — geometry builders incl. the humanoid rig (what is drawn today comes from `city-app/src/mesh.rs`) |
 | `city-render` | *placeholder* — WebGL2 renderer: shadow map, HDR, bloom, culling (the live GL path is in `city-app`) |
 | `city-hud` | minimap / clock / compass / tips model (drawn as vector overlay) |

@@ -106,6 +106,9 @@ dependencies = [
 [[package]]
 name = "city-tex"
 version = "0.1.0"
+dependencies = [
+ "city-math",
+]
 
 [[package]]
 name = "futures-core"

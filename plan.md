@@ -91,8 +91,27 @@ Guiding rules for every step: **small step → `cargo build` → `cargo test` �
   `city-avatar/src/lib.rs`: the strafe axis was the **left** axis (`right = fwd.perp()`)
   so `+x` walked to the camera's left, and the sprint gear was applied to the walk-cycle
   length outside the "moving" branch, which made the phase advance with the wrong stride.
-* **I6 — city-tex (pending)** placeholder crate; `city-app` currently shades flat palette
-  colours per material id instead of generated textures.
+* **I6 — city-tex (done)** procedural materials: the crate now paints every designed
+  surface into a 128×128 RGBA8 tile, in pure Rust, zero images. `city_tex::generate`
+  dispatches one painter per `Material` — asphalt (aggregate speckle, oil stains),
+  concrete, sidewalk (slabs + grooved joints + a wrapping crack network), grass (clump
+  × blade noise with dry straw patches), brick in stretcher bond with per-brick tone
+  and burnt outliers, plaster with rain streaks, roof gravel with bright chippings and
+  puddles, brushed metal (streaks along U, rust freckles) and worn road paint (white /
+  centre yellow). `noise` provides tileable value noise: `NoiseLut` wraps lattice cells
+  with the tile period (the seamless construction `materials::fbm_tile` uses), and
+  `fbm` is the infinite-lattice variant (period `1/oct_freq`). `luts::GradientLut`
+  supplies the scalar colour ramps. Determinism: `generate(m, seed)` is byte-identical
+  for equal seeds and reacts strongly across seeds — `city-tex/tests/tex_generation.rs`
+  (32 tests) pins container semantics, wrap-around texel addressing, seamlessness of
+  the lattice, palette bands per material and the visible marks each painter leaves.
+  Two shared-kernel fixes were needed to make noise-over-lattice a real noise field:
+  `city_math::hash2d` now mixes *both* coordinates through `mix` (previously the x
+  coordinate was only XOR-ed with a constant, so lattice columns barely decorrelated),
+  and `hash2d_unit` draws its fraction from the **high** bits of a re-mixed hash
+  instead of truncating the weak low 40 bits; `city-math/tests/math_rng.rs` gained a
+  lag-1 decorrelation test for it. `city-app` still paints with the old flat palette
+  — wiring the tiles into the GL path is part of I9 (city-render).
 * **I7 — city-mesh (pending)** placeholder crate; the geometry that is drawn is built by
   `city-app/src/mesh.rs` (ground, block caps, kerbs, building boxes, parks, props). No
   humanoid rig / part palette exists yet, so the character has no animated mesh.
@@ -124,13 +143,13 @@ Guiding rules for every step: **small step → `cargo build` → `cargo test` �
 
 ## Test status (as measured)
 
-`cargo test --workspace` → **223 passed / 0 failed**; `node runtime-tests/run.mjs` →
+`cargo test --workspace` → **256 passed / 0 failed**; `node runtime-tests/run.mjs` →
 **12 / 12** in headless Chrome; `./check.sh` → green.
 
 Per-crate `tests/` folders that exist today: `city-math` (4 files), `city-layout` (3),
 `city-sky` (1 — 30 tests), `city-input` (1), `city-avatar` (1 — 32 tests),
-`city-sim` (2 — 43 tests) and `city-app` (2 — 25 tests). Still to write: `city-camera`,
-`city-tex`, `city-mesh`, `city-render`,
+`city-sim` (2 — 43 tests), `city-tex` (1 — 32 tests) and `city-app` (2 — 25 tests).
+Still to write: `city-camera`, `city-mesh`, `city-render`,
 `city-hud`, `city-integration` — the runtime suite currently covers part of that gap from
 the browser side. `city-render` is additionally still a placeholder implementation.
 

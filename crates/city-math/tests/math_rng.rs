@@ -182,3 +182,33 @@ fn world_to_cell_quantises() {
         "bad cell size is safe"
     );
 }
+
+#[test]
+fn hash2d_unit_decorrelates_neighbouring_cells() {
+    // Value noise over this lattice is only a noise field if neighbouring lattice
+    // cells are uncorrelated: measure the lag-1 correlation over a 128x128 patch.
+    let mut a_vals = Vec::new();
+    let mut b_vals = Vec::new();
+    for x in 0..128i32 {
+        for y in 0..128i32 {
+            a_vals.push(city_math::hash::hash2d_unit(x, y, 5) as f64);
+            b_vals.push(city_math::hash::hash2d_unit(x + 1, y, 5) as f64);
+        }
+    }
+    let mean_a: f64 = a_vals.iter().sum::<f64>() / a_vals.len() as f64;
+    let mean_b: f64 = b_vals.iter().sum::<f64>() / b_vals.len() as f64;
+    let cov: f64 = a_vals
+        .iter()
+        .zip(&b_vals)
+        .map(|(a, b)| (a - mean_a) * (b - mean_a))
+        .sum::<f64>()
+        / a_vals.len() as f64;
+    let var_a: f64 = a_vals.iter().map(|v| (v - mean_a).powi(2)).sum::<f64>() / a_vals.len() as f64;
+    let var_b: f64 = b_vals.iter().map(|v| (v - mean_b).powi(2)).sum::<f64>() / b_vals.len() as f64;
+    assert!(
+        cov.abs() < 0.02 * (var_a * var_b).sqrt(),
+        "hash2d_unit neighbours correlate: cov {cov}, sd {} {}",
+        var_a.sqrt(),
+        var_b.sqrt()
+    );
+}
